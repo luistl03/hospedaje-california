@@ -24,11 +24,26 @@ class AuthenticatedSessionController extends Controller
      */
     public function store(LoginRequest $request): RedirectResponse
     {
-        $request->authenticate();
+        // Verificar si el correo existe
+        $user = \App\Models\User::where('email', $request->email)->first();
 
+        if (!$user) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'email' => 'No existe ningún usuario registrado con este correo electrónico.',
+            ]);
+        }
+
+        // Verificar si la contraseña es correcta
+        if (!\Illuminate\Support\Facades\Hash::check($request->password, $user->password)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'password' => 'La contraseña ingresada es incorrecta.',
+            ]);
+        }
+
+        $request->authenticate();
         $request->session()->regenerate();
 
-        return redirect()->intended(route('dashboard', absolute: false));
+        return redirect()->intended('/inicio');
     }
 
     /**
@@ -42,6 +57,6 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerateToken();
 
-        return redirect('/');
+        return redirect('/login');
     }
 }

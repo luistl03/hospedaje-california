@@ -1,3 +1,349 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* ============================================
+   VARIABLES GLOBALES DEL PROYECTO
+   ============================================ */
+:root {
+    --azul-marino:   #001441;
+    --azul-oscuro:   #001038;
+    --dorado:        #C88838;
+    --dorado-oscuro: #C08030;
+    --beige:         #F0E0C8;
+    --blanco:        #F8F8F8;
+    --blanco-calido: #F8F8F0;
+    --gris-texto:    #666666;
+    --gris-borde:    #DDDDDD;
+}
+
+/* ============================================
+   RESET Y BASE
+   ============================================ */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--blanco);
+    position: relative;
+    overflow: hidden;
+}
+
+/* ============================================
+   FIGURAS DECORATIVAS DEL FONDO
+   ============================================ */
+
+/* Círculo grande dorado esquina superior izquierda */
+body::before {
+    content: '';
+    position: fixed;
+    width: 500px;
+    height: 500px;
+    border-radius: 50%;
+    border: 40px solid rgba(200, 136, 56, 0.07);
+    top: -180px;
+    left: -180px;
+    pointer-events: none;
+    z-index: 0;
+}
+
+/* Círculo grande azul esquina inferior derecha */
+body::after {
+    content: '';
+    position: fixed;
+    width: 600px;
+    height: 600px;
+    border-radius: 50%;
+    border: 50px solid rgba(0, 20, 65, 0.05);
+    bottom: -220px;
+    right: -220px;
+    pointer-events: none;
+    z-index: 0;
+}
+
+/* Figura extra usando un div decorativo */
+.fondo-decorativo {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 0;
+    overflow: hidden;
+}
+
+/* Círculo pequeño dorado arriba derecha */
+.fondo-decorativo::before {
+    content: '';
+    position: absolute;
+    width: 250px;
+    height: 250px;
+    border-radius: 50%;
+    border: 30px solid rgba(200, 136, 56, 0.06);
+    top: -80px;
+    right: 15%;
+}
+
+/* Círculo pequeño azul abajo izquierda */
+.fondo-decorativo::after {
+    content: '';
+    position: absolute;
+    width: 300px;
+    height: 300px;
+    border-radius: 50%;
+    border: 25px solid rgba(0, 20, 65, 0.04);
+    bottom: -100px;
+    left: 10%;
+}
+
+/* ============================================
+   LOGIN - CARD PRINCIPAL
+   ============================================ */
+.login-card {
+    display: flex;
+    width: 75%;
+    max-width: 1000px;
+    min-width: 750px;
+    min-height: 500px;
+    border-radius: 28px;
+    overflow: hidden;
+    border: 2px solid var(--azul-marino);
+    box-shadow:
+        0 20px 60px rgba(0, 20, 65, 0.15),
+        0 4px 16px rgba(0, 20, 65, 0.08);
+    position: relative;
+    z-index: 1;
+}
+
+/* ============================================
+   LOGIN - LADO IZQUIERDO
+   ============================================ */
+.login-izquierdo {
+    width: 50%;
+    background: linear-gradient(
+        150deg,
+        #001855 0%,
+        var(--azul-marino) 45%,
+        #000D30 100%
+    );
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 50px 40px;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Marco del logo - squircle pegado */
+.login-logo-marco {
+    position: relative;
+    padding: 10px;
+    border-radius: 28px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 2.5px solid var(--dorado);
+    box-shadow:
+        0 0 0 1px rgba(200, 136, 56, 0.2),
+        0 0 30px rgba(200, 136, 56, 0.25),
+        0 0 60px rgba(200, 136, 56, 0.1),
+        inset 0 0 20px rgba(255, 255, 255, 0.02);
+    transition: transform 0.4s ease, box-shadow 0.4s ease;
+    z-index: 1;
+}
+
+.login-logo-marco:hover {
+    transform: translateY(-5px);
+    box-shadow:
+        0 0 0 1px rgba(200, 136, 56, 0.3),
+        0 0 50px rgba(200, 136, 56, 0.4),
+        0 0 80px rgba(200, 136, 56, 0.15),
+        inset 0 0 20px rgba(255, 255, 255, 0.04);
+}
+
+.login-logo-marco img {
+    width: 290px;
+    display: block;
+    border-radius: 22px;
+    filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.3));
+}
+
+/* Texto bienvenida */
+.login-bienvenida {
+    margin-top: 24px;
+    text-align: center;
+    z-index: 1;
+}
+
+.login-bienvenida p {
+    color: rgba(255, 255, 255, 0.45);
+    font-size: 0.72rem;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    margin-bottom: 5px;
+}
+
+.login-bienvenida span {
+    color: var(--dorado);
+    font-size: 0.88rem;
+    font-weight: 500;
+    letter-spacing: 1px;
+}
+
+/* ============================================
+   LOGIN - LADO DERECHO
+   ============================================ */
+.login-derecho {
+    width: 50%;
+    background-color: var(--blanco);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 50px 45px;
+    border-left: 1px solid rgba(0, 20, 65, 0.08);
+}
+
+.login-formulario {
+    width: 100%;
+}
+
+/* Encabezado */
+.login-encabezado {
+    text-align: center;
+    margin-bottom: 38px;
+}
+
+.login-sistema {
+    display: block;
+    font-size: 1rem;
+    font-weight: 600;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--dorado);
+    margin-bottom: 8px;
+}
+
+.login-encabezado h2 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--azul-marino);
+    line-height: 1.2;
+}
+
+.login-encabezado h2::after {
+    content: '';
+    display: block;
+    width: 100px;
+    height: 3px;
+    background: linear-gradient(90deg, var(--dorado), var(--dorado-oscuro));
+    margin: 10px auto 0;
+    border-radius: 2px;
+}
+
+/* Campos */
+.campo-grupo {
+    position: relative;
+    margin-bottom: 26px;
+}
+
+.campo-grupo label {
+    display: block;
+    font-size: 0.76rem;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--gris-texto);
+    margin-bottom: 8px;
+}
+
+.campo-input {
+    display: flex;
+    align-items: center;
+    border-bottom: 2px solid var(--gris-borde);
+    transition: border-color 0.3s ease;
+    padding-bottom: 8px;
+}
+
+.campo-input:focus-within {
+    border-bottom-color: var(--dorado);
+}
+
+.campo-icono {
+    color: var(--gris-borde);
+    margin-right: 10px;
+    font-size: 1rem;
+    transition: color 0.3s ease;
+    flex-shrink: 0;
+}
+
+.campo-input:focus-within .campo-icono {
+    color: var(--dorado);
+}
+
+.campo-input input {
+    border: none;
+    outline: none;
+    width: 100%;
+    font-size: 0.95rem;
+    color: var(--azul-marino);
+    background: transparent;
+    padding: 4px 0;
+}
+
+.campo-input input::placeholder {
+    color: #CCCCCC;
+    font-size: 0.88rem;
+}
+
+/* Botón */
+.btn-login {
+    width: 100%;
+    padding: 13px;
+    margin-top: 12px;
+    background: linear-gradient(135deg, var(--dorado) 0%, var(--dorado-oscuro) 100%);
+    color: white;
+    border: none;
+    border-radius: 50px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.3s ease;
+    box-shadow: 0 6px 20px rgba(200, 136, 56, 0.3);
+}
+
+.btn-login:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 28px rgba(200, 136, 56, 0.45);
+    color: white;
+}
+
+.btn-login:active {
+    transform: translateY(0);
+}
+
+/* ============================================
+   LOGIN - MENSAJES DE ERROR
+   ============================================ */
+.login-error {
+    background-color: #fff5f5;
+    border: 1px solid #ffcccc;
+    border-left: 4px solid #cc0000;
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin-bottom: 20px;
+    font-size: 0.85rem;
+    color: #cc0000;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.campo-input.error {
+    border-bottom-color: #cc0000;
+}
