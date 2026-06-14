@@ -11,17 +11,11 @@ use Illuminate\View\View;
 
 class AuthenticatedSessionController extends Controller
 {
-    /**
-     * Display the login view.
-     */
     public function create(): View
     {
         return view('auth.login');
     }
 
-    /**
-     * Handle an incoming authentication request.
-     */
     public function store(LoginRequest $request): RedirectResponse
     {
         // Verificar si el correo existe
@@ -40,15 +34,19 @@ class AuthenticatedSessionController extends Controller
             ]);
         }
 
+        // Verificar si el usuario está activo
+        if (!$user->activo) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'email' => 'Tu cuenta está desactivada. Contacta al administrador.',
+            ]);
+        }
+
         $request->authenticate();
         $request->session()->regenerate();
 
         return redirect()->intended('/inicio');
     }
 
-    /**
-     * Destroy an authenticated session.
-     */
     public function destroy(Request $request): RedirectResponse
     {
         Auth::guard('web')->logout();
@@ -57,6 +55,6 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerateToken();
 
-        return redirect('/login');
+        return redirect()->route('login');
     }
 }
