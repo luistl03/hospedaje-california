@@ -11,10 +11,13 @@ class Huesped extends Model
 
     protected $table = 'huespedes';
 
+    protected $primaryKey = 'num_doc';
+    public $incrementing = false;
+    protected $keyType = 'string';
+
     protected $fillable = [
-        'nombre',
-        'tipo_doc_id',
         'num_doc',
+        'nombre',
         'telefono',
         'activo',
     ];
@@ -22,18 +25,19 @@ class Huesped extends Model
     protected function casts(): array
     {
         return [
-            'tipo_doc_id' => 'integer',
-            'activo'      => 'boolean',
+            'activo' => 'boolean',
         ];
-    }
-
-    public function tipoDocumento()
-    {
-        return $this->belongsTo(TipoDocumento::class, 'tipo_doc_id');
     }
 
     public function reservas()
     {
-        return $this->belongsToMany(Reserva::class, 'reserva_huespedes', 'huesped_id', 'reserva_id');
+        return $this->belongsToMany(
+            Reserva::class,
+            'reserva_huespedes',
+            'huesped_num_doc',
+            'reserva_id',
+            'num_doc',
+            'id'
+        );
     }
 }

@@ -13,7 +13,6 @@ class Extension extends Model
 
     protected $fillable = [
         'reserva_id',
-        'usuario_id',
         'cantidad',
     ];
 
@@ -22,21 +21,16 @@ class Extension extends Model
         return $this->belongsTo(Reserva::class, 'reserva_id');
     }
 
-    public function usuario()
-    {
-        return $this->belongsTo(User::class, 'usuario_id');
-    }
-
     public function habitaciones()
     {
         return $this->belongsToMany(
             Habitacion::class,
             'extension_habitaciones',
             'extension_id',
-            'habitacion_numero',
+            'numero_habitacion',
             'id',
             'numero'
-        )->withPivot('monto');
+        )->withPivot('monto', 'reserva_id');
     }
 
     public function pagos()

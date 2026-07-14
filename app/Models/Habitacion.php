@@ -19,6 +19,7 @@ class Habitacion extends Model
         'tipo_id',
         'estado_id',
         'activo',
+        'created_at',
     ];
 
     protected function casts(): array
@@ -43,10 +44,5 @@ class Habitacion extends Model
     public function reservas()
     {
         return $this->belongsToMany(Reserva::class, 'reserva_habitaciones', 'habitacion_numero', 'reserva_id', 'numero', 'id');
-    }
-
-    public function extensiones()
-    {
-        return $this->belongsToMany(Extension::class, 'extension_habitaciones', 'habitacion_numero', 'extension_id', 'numero', 'id');
     }
 }

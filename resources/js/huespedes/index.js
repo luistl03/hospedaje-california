@@ -1,74 +1,75 @@
-// ─── VERIFICAR DOCUMENTO (AJAX) ───
-window.verificarDocumento = function (numDocId, tipoDocId, errorId, huespedId = 0) {
-    const numDoc  = document.getElementById(numDocId).value;
-    const tipoDoc = document.getElementById(tipoDocId).value;
-    const errorEl = document.getElementById(errorId);
+// Consulta si el documento ya existe y marca error visual
+window.verificarDocumento = function (numDocId, errorId, numDocOriginal = '') {
+    const numDoc     = document.getElementById(numDocId).value;
+    const errorEl    = document.getElementById(errorId);
+    const campoInput = document.getElementById(numDocId).closest('.campo-input');
 
-    if (!numDoc || !tipoDoc) {
+    if (!numDoc) {
         errorEl.textContent = '';
+        campoInput.classList.remove('error');
         return;
     }
 
-    fetch(`/huespedes/verificar-documento?num_doc=${encodeURIComponent(numDoc)}&tipo_doc_id=${tipoDoc}&id=${huespedId}`, {
+    fetch(`/huespedes/verificar-documento?num_doc=${encodeURIComponent(numDoc)}&num_doc_original=${encodeURIComponent(numDocOriginal)}`, {
         headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content },
     })
         .then(res => res.json())
         .then(data => {
             if (data.existe) {
                 errorEl.textContent = 'Este documento ya está registrado.';
-                document.getElementById(numDocId).closest('.campo-input').style.borderBottomColor = '#cc0000';
+                campoInput.classList.add('error');
             } else {
                 errorEl.textContent = '';
-                document.getElementById(numDocId).closest('.campo-input').style.borderBottomColor = '';
+                campoInput.classList.remove('error');
             }
         });
 };
 
-// ─── VERIFICAR TELÉFONO (AJAX) ───
-window.verificarTelefono = function (telId, errorId, huespedId = 0) {
-    const telefono = document.getElementById(telId).value;
-    const errorEl  = document.getElementById(errorId);
+// Consulta si el teléfono ya existe y marca error visual
+window.verificarTelefono = function (telId, errorId, numDocOriginal = '') {
+    const telefono   = document.getElementById(telId).value;
+    const errorEl    = document.getElementById(errorId);
+    const campoInput = document.getElementById(telId).closest('.campo-input');
 
     if (!telefono) {
         errorEl.textContent = '';
-        document.getElementById(telId).closest('.campo-input').style.borderBottomColor = '';
+        campoInput.classList.remove('error');
         return;
     }
 
-    fetch(`/huespedes/verificar-telefono?telefono=${encodeURIComponent(telefono)}&id=${huespedId}`, {
+    fetch(`/huespedes/verificar-telefono?telefono=${encodeURIComponent(telefono)}&num_doc_original=${encodeURIComponent(numDocOriginal)}`, {
         headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content },
     })
         .then(res => res.json())
         .then(data => {
             if (data.existe) {
                 errorEl.textContent = 'Este teléfono ya está registrado.';
-                document.getElementById(telId).closest('.campo-input').style.borderBottomColor = '#cc0000';
+                campoInput.classList.add('error');
             } else {
                 errorEl.textContent = '';
-                document.getElementById(telId).closest('.campo-input').style.borderBottomColor = '';
+                campoInput.classList.remove('error');
             }
         });
 };
 
-// ─── VALIDAR FORMULARIO ───
+// Bloquea el submit si hay errores de documento o teléfono visibles
 window.validarFormulario = function (errorDocId, errorTelId) {
     const errorDoc = document.getElementById(errorDocId);
     const errorTel = document.getElementById(errorTelId);
     return errorDoc.textContent.trim() === '' && errorTel.textContent.trim() === '';
 };
 
-// ─── FILTROS ───
+// Consulta huéspedes filtrados (AJAX) y pinta la tabla
 let paginaActual = 1;
 
 window.buscarHuespedes = function (pagina = 1) {
     paginaActual = pagina;
 
     const params = new URLSearchParams({
-        nombre:      document.getElementById('filtroNombre').value,
-        tipo_doc_id: document.getElementById('filtroTipoDoc').value,
-        num_doc:     document.getElementById('filtroNumDoc').value,
-        telefono:    document.getElementById('filtroTelefono').value,
-        activo:      document.getElementById('filtroActivo').value,
+        nombre:   document.getElementById('filtroNombre').value,
+        num_doc:  document.getElementById('filtroNumDoc').value,
+        telefono: document.getElementById('filtroTelefono').value,
+        activo:   document.getElementById('filtroActivo').value,
         pagina,
     });
 
@@ -80,15 +81,16 @@ window.buscarHuespedes = function (pagina = 1) {
             const tbody = document.querySelector('#tablaHuespedes tbody');
             tbody.innerHTML = '';
 
+            // Sin resultados: estado vacío
             if (resp.data.length === 0) {
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="6" style="text-align:center; padding:40px 20px; color:var(--gris-texto);">
-                            <i class="bi bi-search" style="font-size:1.5rem; display:block; margin-bottom:8px; opacity:0.4;"></i>
+                        <td colspan="5" class="paso2-estado">
+                            <i class="bi bi-search"></i>
                             No se encontraron huéspedes con los filtros aplicados.
                         </td>
                     </tr>`;
-                document.getElementById('paginacion').style.display = 'none';
+                document.getElementById('paginacion').classList.remove('activo');
                 return;
             }
 
@@ -96,7 +98,6 @@ window.buscarHuespedes = function (pagina = 1) {
                 tbody.innerHTML += `
                     <tr>
                         <td><strong>${h.nombre}</strong></td>
-                        <td>${h.tipo_doc.toUpperCase()}</td>
                         <td>${h.num_doc}</td>
                         <td>${h.telefono}</td>
                         <td>
@@ -107,17 +108,15 @@ window.buscarHuespedes = function (pagina = 1) {
                         <td class="acciones">
                             <button class="btn-accion btn-editar"
                                 data-bs-toggle="modal" data-bs-target="#modalEditar"
-                                data-id="${h.id}"
-                                data-nombre="${h.nombre}"
-                                data-tipo-doc-id="${h.tipo_doc_id}"
                                 data-num-doc="${h.num_doc}"
+                                data-nombre="${h.nombre}"
                                 data-telefono="${h.telefono === '—' ? '' : h.telefono}"
                                 data-activo="${h.activo}">
                                 <i class="bi bi-pencil"></i>
                             </button>
                             <button class="btn-accion btn-eliminar"
                                 data-bs-toggle="modal" data-bs-target="#modalEliminar"
-                                data-id="${h.id}"
+                                data-num-doc="${h.num_doc}"
                                 data-nombre="${h.nombre}">
                                 <i class="bi bi-trash"></i>
                             </button>
@@ -129,25 +128,25 @@ window.buscarHuespedes = function (pagina = 1) {
         });
 };
 
+// Resetea los filtros y vuelve a buscar desde la página 1
 window.limpiarFiltros = function () {
     document.getElementById('filtroNombre').value   = '';
-    document.getElementById('filtroTipoDoc').value  = '';
     document.getElementById('filtroNumDoc').value   = '';
     document.getElementById('filtroTelefono').value = '';
     document.getElementById('filtroActivo').value   = '';
     window.buscarHuespedes(1);
 };
 
-// ─── PAGINACIÓN ───
+// Genera los botones de paginación según página actual y total
 function renderizarPaginacion(actual, total) {
     const contenedor = document.getElementById('paginacion');
 
     if (total <= 1) {
-        contenedor.style.display = 'none';
+        contenedor.classList.remove('activo');
         return;
     }
 
-    contenedor.style.display = 'flex';
+    contenedor.classList.add('activo');
     contenedor.innerHTML = '';
 
     const btn = (i, label = null, disabled = false, activo = false) => `
@@ -156,7 +155,7 @@ function renderizarPaginacion(actual, total) {
             ${label ?? i}
         </button>`;
 
-    const puntos = `<span style="padding:0 6px; color:var(--gris-texto); align-self:center;">...</span>`;
+    const puntos = `<span class="paginacion-puntos">...</span>`;
 
     contenedor.innerHTML += btn(actual - 1, '<i class="bi bi-chevron-left"></i>', actual === 1);
     contenedor.innerHTML += btn(1, null, false, actual === 1);
@@ -174,82 +173,47 @@ function renderizarPaginacion(actual, total) {
     contenedor.innerHTML += btn(actual + 1, '<i class="bi bi-chevron-right"></i>', actual === total);
 }
 
-// ─── MODALES ───
+// Listeners de modales: cargan datos al abrir, limpian al cerrar
 document.addEventListener('DOMContentLoaded', () => {
 
-    // ─── BLOQUEAR N° DOC HASTA SELECCIONAR TIPO (CREAR) ───
-    const crearTipoDoc = document.getElementById('crearTipoDoc');
-    const crearNumDoc  = document.getElementById('crearNumDoc');
-
-    crearNumDoc.disabled     = true;
-    crearNumDoc.placeholder  = 'Primero selecciona el tipo';
-
-    crearTipoDoc.addEventListener('change', function () {
-        const habilitado        = this.value !== '';
-        crearNumDoc.disabled    = !habilitado;
-        crearNumDoc.placeholder = habilitado ? 'Ej: 12345678' : 'Primero selecciona el tipo';
-        if (!habilitado) {
-            crearNumDoc.value = '';
-            document.getElementById('errorDocCrear').textContent = '';
-            crearNumDoc.closest('.campo-input').style.borderBottomColor = '';
-        }
-    });
-
-    // ─── BLOQUEAR N° DOC SI SE LIMPIA TIPO (EDITAR) ───
-    document.getElementById('editTipoDoc').addEventListener('change', function () {
-        const editNumDoc = document.getElementById('editNumDoc');
-        if (this.value === '') {
-            editNumDoc.disabled = true;
-            editNumDoc.value    = '';
-            document.getElementById('errorDocEditar').textContent = '';
-            editNumDoc.closest('.campo-input').style.borderBottomColor = '';
-        } else {
-            editNumDoc.disabled = false;
-        }
-    });
-
-    // ─── MODAL CREAR — limpiar al cerrar ───
+    // Modal Crear Huésped: limpia campos y errores al cerrar
     document.getElementById('modalCrear').addEventListener('hidden.bs.modal', function () {
         document.getElementById('formCrear').reset();
         document.getElementById('errorDocCrear').textContent = '';
         document.getElementById('errorTelCrear').textContent = '';
-        document.getElementById('crearNumDoc').closest('.campo-input').style.borderBottomColor   = '';
-        document.getElementById('crearTelefono').closest('.campo-input').style.borderBottomColor = '';
-        crearNumDoc.disabled    = true;
-        crearNumDoc.placeholder = 'Primero selecciona el tipo';
+        document.getElementById('crearNumDoc').closest('.campo-input').classList.remove('error');
+        document.getElementById('crearTelefono').closest('.campo-input').classList.remove('error');
     });
 
-    // ─── MODAL EDITAR — cargar datos ───
+    // Modal Editar Huésped: carga datos al abrir
     document.getElementById('modalEditar').addEventListener('show.bs.modal', function (e) {
         const btn = e.relatedTarget;
-        document.getElementById('editId').value           = btn.dataset.id;
-        document.getElementById('editNombre').value       = btn.dataset.nombre;
-        document.getElementById('editTipoDoc').value      = btn.dataset.tipoDocId;
-        document.getElementById('editNumDoc').value       = btn.dataset.numDoc;
-        document.getElementById('editNumDoc').disabled    = false;
-        document.getElementById('editTelefono').value     = btn.dataset.telefono ?? '';
-        document.getElementById('editActivo').value       = String(btn.dataset.activo);
-        document.getElementById('editPaginaActual').value = paginaActual;
-        document.getElementById('formEditar').action      = `/huespedes/${btn.dataset.id}`;
+        document.getElementById('editNumDocOriginal').value = btn.dataset.numDoc;
+        document.getElementById('editNombre').value         = btn.dataset.nombre;
+        document.getElementById('editNumDoc').value         = btn.dataset.numDoc;
+        document.getElementById('editTelefono').value       = btn.dataset.telefono ?? '';
+        document.getElementById('editActivo').value         = String(btn.dataset.activo);
+        document.getElementById('editPaginaActual').value   = paginaActual;
+        document.getElementById('formEditar').action        = `/huespedes/${encodeURIComponent(btn.dataset.numDoc)}`;
     });
 
-    // ─── MODAL EDITAR — limpiar al cerrar ───
+    // Modal Editar Huésped: limpia campos y errores al cerrar
     document.getElementById('modalEditar').addEventListener('hidden.bs.modal', function () {
         document.getElementById('formEditar').reset();
         document.getElementById('errorDocEditar').textContent = '';
         document.getElementById('errorTelEditar').textContent = '';
-        document.getElementById('editNumDoc').closest('.campo-input').style.borderBottomColor   = '';
-        document.getElementById('editTelefono').closest('.campo-input').style.borderBottomColor = '';
+        document.getElementById('editNumDoc').closest('.campo-input').classList.remove('error');
+        document.getElementById('editTelefono').closest('.campo-input').classList.remove('error');
     });
 
-    // ─── MODAL ELIMINAR — cargar datos ───
+    // Modal Eliminar Huésped: carga nombre y acción del form al abrir
     document.getElementById('modalEliminar').addEventListener('show.bs.modal', function (e) {
         const btn = e.relatedTarget;
         document.getElementById('eliminarNombre').textContent = btn.dataset.nombre;
-        document.getElementById('formEliminar').action        = `/huespedes/${btn.dataset.id}`;
+        document.getElementById('formEliminar').action        = `/huespedes/${encodeURIComponent(btn.dataset.numDoc)}`;
     });
 
-    // ─── CARGA INICIAL ───
+    // Carga inicial: restaura la página guardada en sesión
     const paginaInicial = window.paginaRetorno ?? 1;
     window.buscarHuespedes(paginaInicial);
 });

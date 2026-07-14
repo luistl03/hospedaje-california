@@ -1,8 +1,9 @@
 <x-guest-layout>
 
+    {{-- FORMULARIO DE LOGIN --}}
     <div class="login-formulario">
 
-        <!-- Encabezado -->
+        {{-- Encabezado: sistema y nombre del negocio --}}
         <div class="login-encabezado">
             <span class="login-sistema">Sistema de Gestión</span>
             <h2>Hospedaje California</h2>
@@ -11,7 +12,7 @@
         <form method="POST" action="{{ route('login') }}">
             @csrf
 
-            <!-- Error general de credenciales -->
+            {{-- Errores de validación del servidor --}}
             @if ($errors->has('email'))
                 <div class="login-error">
                     <i class="bi bi-exclamation-circle"></i>
@@ -26,7 +27,7 @@
                 </div>
             @endif
 
-            <!-- Campo Correo -->
+            {{-- Campo: Correo electrónico Clase .error la aplica Blade si el servidor retorna error --}}
             <div class="campo-grupo">
                 <label for="email">Correo electrónico</label>
                 <div class="campo-input {{ $errors->has('email') ? 'error' : '' }}">
@@ -38,7 +39,7 @@
                 </div>
             </div>
 
-            <!-- Campo Contraseña -->
+            {{-- Campo: Contraseña. Clase .error la aplica Blade si el servidor retorna error.--}}
             <div class="campo-grupo">
                 <label for="password">Contraseña</label>
                 <div class="campo-password {{ $errors->has('password') ? 'error' : '' }}">
@@ -52,7 +53,7 @@
                 </div>
             </div>
 
-            <!-- Botón -->
+            {{-- Botón de submit --}}
             <button type="submit" class="btn-login">
                 Iniciar Sesión
             </button>
@@ -61,10 +62,12 @@
 
     </div>
 
+    {{--  SCRIPT INLINE — solo para el login --}}
     <script>
+        //  OJITO CONTRASEÑA: Alterna visibilidad del campo y cambia el ícono.
         function togglePassword(inputId, iconId) {
             const input = document.getElementById(inputId);
-            const icon = document.getElementById(iconId);
+            const icon  = document.getElementById(iconId);
             if (input.type === 'password') {
                 input.type = 'text';
                 icon.classList.replace('bi-eye', 'bi-eye-slash');
@@ -74,6 +77,7 @@
             }
         }
 
+        // FOCO AUTOMÁTICO EN CAMPO CON ERROR: Si el servidor devuelve error, enfoca el campo correspondiente para que el usuario corrija.
         document.addEventListener('DOMContentLoaded', function () {
             @if ($errors->has('password'))
                 document.getElementById('password').focus();

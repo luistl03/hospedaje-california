@@ -2,7 +2,7 @@
 
     <div class="pagina-contenedor">
 
-        <!-- ENCABEZADO -->
+        {{-- Encabezado: título y acciones (nuevo huesped) --}}
         <div class="pagina-encabezado">
             <h1 class="pagina-titulo">Huéspedes</h1>
             <button class="btn-primario" data-bs-toggle="modal" data-bs-target="#modalCrear">
@@ -10,7 +10,7 @@
             </button>
         </div>
 
-        <!-- ALERTAS -->
+        {{-- Alertas de sesión --}}
         @if(session('error'))
             <div class="login-error mb-3">
                 <i class="bi bi-exclamation-circle"></i>
@@ -25,7 +25,7 @@
             </div>
         @endif
 
-        <!-- FILTROS -->
+        {{-- Filtros de búsqueda (AJAX vía buscarHuespedes) --}}
         <div class="filtros-barra">
 
             <div class="filtro-grupo">
@@ -33,19 +33,6 @@
                 <div class="campo-input">
                     <i class="bi bi-person campo-icono"></i>
                     <input type="text" id="filtroNombre" placeholder="Ej: Juan">
-                </div>
-            </div>
-
-            <div class="filtro-grupo">
-                <label>Tipo Doc.</label>
-                <div class="campo-select">
-                    <i class="bi bi-card-text campo-icono"></i>
-                    <select id="filtroTipoDoc">
-                        <option value="">Todos</option>
-                        @foreach($tiposDocumento as $tipo)
-                            <option value="{{ $tipo->id }}">{{ strtoupper($tipo->nombre) }}</option>
-                        @endforeach
-                    </select>
                 </div>
             </div>
 
@@ -88,13 +75,12 @@
 
         </div>
 
-        <!-- TABLA HUÉSPEDES -->
+        {{-- Tabla de huespedes, tbody se llena por JS --}}
         <div class="tabla-contenedor">
             <table class="tabla" id="tablaHuespedes">
                 <thead>
                     <tr>
                         <th>Nombre</th>
-                        <th>Tipo Doc.</th>
                         <th>N° Documento</th>
                         <th>Teléfono</th>
                         <th>Activo</th>
@@ -106,12 +92,13 @@
             </table>
         </div>
 
-        <!-- PAGINACIÓN -->
-        <div id="paginacion" style="display:none; justify-content:center; margin-top:20px; gap:4px; flex-wrap:wrap;"></div>
+        {{-- Paginación generada por JS --}}
+        <div id="paginacion" class="paginacion-contenedor"></div>
 
     </div>
 
-    <!-- MODAL CREAR HUÉSPED -->
+
+    {{-- Modal: nuevo huesped --}}
     <div class="modal fade" id="modalCrear" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content modal-california">
@@ -134,49 +121,31 @@
                             </div>
                         </div>
 
-                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-
-                            <div class="campo-grupo">
-                                <label>Tipo de Documento</label>
-                                <div class="campo-select">
-                                    <i class="bi bi-card-text campo-icono"></i>
-                                    <select name="tipo_doc_id" id="crearTipoDoc"
-                                        onchange="window.verificarDocumento('crearNumDoc', 'crearTipoDoc', 'errorDocCrear')"
-                                        required>
-                                        <option value="">Seleccionar...</option>
-                                        @foreach($tiposDocumento as $tipo)
-                                            <option value="{{ $tipo->id }}">{{ strtoupper($tipo->nombre) }}</option>
-                                        @endforeach
-                                    </select>
-                                </div>
-                            </div>
-
+                        <div class="form-grid-2">
                             <div class="campo-grupo">
                                 <label>N° Documento</label>
                                 <div class="campo-input">
                                     <i class="bi bi-hash campo-icono"></i>
                                     <input type="text" name="num_doc" id="crearNumDoc"
                                         placeholder="Ej: 12345678"
-                                        oninput="window.verificarDocumento('crearNumDoc', 'crearTipoDoc', 'errorDocCrear')"
+                                        oninput="window.verificarDocumento('crearNumDoc', 'errorDocCrear')"
                                         maxlength="20" required>
                                 </div>
-                                <small id="errorDocCrear" style="color:#cc0000; font-size:0.78rem; margin-top:4px; display:block;"></small>
+                                <small id="errorDocCrear" class="campo-error"></small>
                             </div>
 
-                        </div>
-
-                        <div class="campo-grupo">
-                            <label>Teléfono <span style="color: var(--gris-texto); font-size:0.75rem;">(opcional)</span></label>
-                            <div class="campo-input">
-                                <i class="bi bi-telephone campo-icono"></i>
-                                <input type="text" name="telefono" id="crearTelefono"
-                                    placeholder="Ej: 987654321"
-                                    oninput="window.verificarTelefono('crearTelefono', 'errorTelCrear')"
-                                    maxlength="15">
+                            <div class="campo-grupo">
+                                <label>Teléfono <span class="label-opcional">(opcional)</span></label>
+                                <div class="campo-input">
+                                    <i class="bi bi-telephone campo-icono"></i>
+                                    <input type="text" name="telefono" id="crearTelefono"
+                                        placeholder="Ej: 987654321"
+                                        oninput="window.verificarTelefono('crearTelefono', 'errorTelCrear')"
+                                        maxlength="15">
+                                </div>
+                                <small id="errorTelCrear" class="campo-error"></small>
                             </div>
-                            <small id="errorTelCrear" style="color:#cc0000; font-size:0.78rem; margin-top:4px; display:block;"></small>
                         </div>
-
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn-secundario" data-bs-dismiss="modal">Cancelar</button>
@@ -187,7 +156,8 @@
         </div>
     </div>
 
-    <!-- MODAL EDITAR HUÉSPED -->
+
+    {{-- Modal: editar habitación (datos cargados por JS, aviso de historial cuando aplica) --}}
     <div class="modal fade" id="modalEditar" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content modal-california">
@@ -202,8 +172,11 @@
                     @csrf
                     @method('PUT')
                     <div class="modal-body">
-                        <input type="hidden" id="editId" value="">
+
+                        {{-- Guarda el num_doc ORIGINAL (antes de editar) para excluirlo en validaciones AJAX --}}
+                        <input type="hidden" id="editNumDocOriginal" value="">
                         <input type="hidden" id="editPaginaActual" name="pagina_actual" value="1">
+
                         <div class="campo-grupo">
                             <label>Nombre completo</label>
                             <div class="campo-input">
@@ -212,44 +185,28 @@
                             </div>
                         </div>
 
-                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-
-                            <div class="campo-grupo">
-                                <label>Tipo de Documento</label>
-                                <div class="campo-select">
-                                    <i class="bi bi-card-text campo-icono"></i>
-                                    <select name="tipo_doc_id" id="editTipoDoc"
-                                        onchange="window.verificarDocumento('editNumDoc', 'editTipoDoc', 'errorDocEditar', document.getElementById('editId').value)"
-                                        required>
-                                        @foreach($tiposDocumento as $tipo)
-                                            <option value="{{ $tipo->id }}">{{ strtoupper($tipo->nombre) }}</option>
-                                        @endforeach
-                                    </select>
-                                </div>
-                            </div>
-
+                        <div class="form-grid-2">
                             <div class="campo-grupo">
                                 <label>N° Documento</label>
                                 <div class="campo-input">
                                     <i class="bi bi-hash campo-icono"></i>
                                     <input type="text" name="num_doc" id="editNumDoc"
-                                        oninput="window.verificarDocumento('editNumDoc', 'editTipoDoc', 'errorDocEditar', document.getElementById('editId').value)"
+                                        oninput="window.verificarDocumento('editNumDoc', 'errorDocEditar', document.getElementById('editNumDocOriginal').value)"
                                         maxlength="20" required>
                                 </div>
-                                <small id="errorDocEditar" style="color:#cc0000; font-size:0.78rem; margin-top:4px; display:block;"></small>
+                                <small id="errorDocEditar" class="campo-error"></small>
                             </div>
 
-                        </div>
-
-                        <div class="campo-grupo">
-                            <label>Teléfono <span style="color: var(--gris-texto); font-size:0.75rem;">(opcional)</span></label>
-                            <div class="campo-input">
-                                <i class="bi bi-telephone campo-icono"></i>
-                                <input type="text" name="telefono" id="editTelefono"
-                                    oninput="window.verificarTelefono('editTelefono', 'errorTelEditar', document.getElementById('editId').value)"
-                                    maxlength="15">
+                            <div class="campo-grupo">
+                                <label>Teléfono <span class="label-opcional">(opcional)</span></label>
+                                <div class="campo-input">
+                                    <i class="bi bi-telephone campo-icono"></i>
+                                    <input type="text" name="telefono" id="editTelefono"
+                                        oninput="window.verificarTelefono('editTelefono', 'errorTelEditar', document.getElementById('editNumDocOriginal').value)"
+                                        maxlength="15">
+                                </div>
+                                <small id="errorTelEditar" class="campo-error"></small>
                             </div>
-                            <small id="errorTelEditar" style="color:#cc0000; font-size:0.78rem; margin-top:4px; display:block;"></small>
                         </div>
 
                         <div class="campo-grupo">
@@ -273,7 +230,8 @@
         </div>
     </div>
 
-    <!-- MODAL ELIMINAR HUÉSPED -->
+    
+    {{-- Modal: editar habitación (datos cargados por JS, aviso de historial cuando aplica) --}}
     <div class="modal fade" id="modalEliminar" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered modal-sm">
             <div class="modal-content modal-california">
@@ -284,9 +242,9 @@
                     </button>
                 </div>
                 <div class="modal-body text-center">
-                    <p style="color: var(--gris-texto); font-size: 0.9rem;">
+                    <p class="modal-eliminar-texto">
                         ¿Estás seguro que deseas eliminar a
-                        <strong id="eliminarNombre" style="color: var(--azul-marino);"></strong>?
+                        <strong id="eliminarNombre" class="modal-eliminar-nombre"></strong>?
                         Esta acción no se puede deshacer.
                     </p>
                 </div>
@@ -302,6 +260,8 @@
         </div>
     </div>
 
+
+    {{-- Datos iniciales para JS: página de retorno --}}
     <script>
         window.paginaRetorno = {{ session('pagina_retorno', 1) }};
     </script>

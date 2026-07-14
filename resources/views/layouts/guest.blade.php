@@ -6,17 +6,19 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Iniciar Sesión — Hospedaje California</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
-    <!-- Bootstrap Icons-->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 </head>
+
+{{-- body-login: centra la card en pantalla completa (flexbox) --}}
 <body class="body-login">
-    
-    <!-- Figuras decorativas del fondo -->
+
+    {{-- Figuras decorativas del fondo (círculos via ::before / ::after en CSS) --}}
     <div class="fondo-decorativo"></div>
 
+    {{-- CARD DE LOGIN — Contenedor principal dividido en dos mitades --}}
     <div class="login-card">
 
-        <!-- LADO IZQUIERDO -->
+        {{-- LADO IZQUIERDO — Logo con marco dorado --}}
         <div class="login-izquierdo">
             <div class="login-logo-marco">
                 <img src="{{ asset('images/isologo_california.png') }}"
@@ -24,7 +26,7 @@
             </div>
         </div>
 
-        <!-- LADO DERECHO -->
+        {{-- LADO DERECHO — Formulario (slot inyectado por Blade) --}}
         <div class="login-derecho">
             {{ $slot }}
         </div>
@@ -33,4 +35,3 @@
 
 </body>
 </html>
-

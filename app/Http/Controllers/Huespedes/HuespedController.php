@@ -4,33 +4,75 @@ namespace App\Http\Controllers\Huespedes;
 
 use App\Http\Controllers\Controller;
 use App\Models\Huesped;
-use App\Models\TipoDocumento;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class HuespedController extends Controller
 {
-    public function index()
+    // Verifica si el huésped tiene una reserva pendiente o activa (como acompañante o principal)
+    private function tieneReservasVigentes(string $numDoc): bool
     {
-        $tiposDocumento = TipoDocumento::orderBy('nombre')->get();
+        $idsBloqueo = DB::table('estados_reserva')
+            ->whereIn('nombre', ['pendiente', 'activa'])
+            ->pluck('id');
 
-        return view('huespedes.index', compact('tiposDocumento'));
+        $comoAcompanante = DB::table('reserva_huespedes')
+            ->join('reservas', 'reservas.id', '=', 'reserva_huespedes.reserva_id')
+            ->where('reserva_huespedes.huesped_num_doc', $numDoc)
+            ->whereIn('reservas.estado_id', $idsBloqueo)
+            ->exists();
+
+        if ($comoAcompanante) {
+            return true;
+        }
+
+        // huesped_principal no tiene FK, se verifica aparte
+        return DB::table('reservas')
+            ->where('huesped_principal', $numDoc)
+            ->whereIn('estado_id', $idsBloqueo)
+            ->exists();
     }
 
+    // Verifica si el huésped aparece en cualquier reserva, vigente o no (como acompañante o principal)
+    private function tieneHistorialReservas(string $numDoc): bool
+    {
+        $comoAcompanante = DB::table('reserva_huespedes')
+            ->where('huesped_num_doc', $numDoc)
+            ->exists();
+
+        if ($comoAcompanante) {
+            return true;
+        }
+
+        // huesped_principal no tiene FK, se verifica aparte
+        return DB::table('reservas')
+            ->where('huesped_principal', $numDoc)
+            ->exists();
+    }
+
+    public function index()
+    {
+        return view('huespedes.index');
+    }
+
+    // Verifica por AJAX si el número de documento ya existe
     public function verificarDocumento(Request $request)
     {
-        $existe = Huesped::where('tipo_doc_id', $request->tipo_doc_id)
-            ->where('num_doc', $request->num_doc)
-            ->where('id', '!=', $request->id ?? 0)
+        $existe = Huesped::where('num_doc', $request->num_doc)
+            ->when($request->filled('num_doc_original'), function ($q) use ($request) {
+                $q->where('num_doc', '!=', $request->num_doc_original);
+            })
             ->exists();
 
         return response()->json(['existe' => $existe]);
     }
 
+    // Verifica por AJAX si el teléfono ya existe
     public function verificarTelefono(Request $request)
     {
         $existe = Huesped::whereNotNull('telefono')
             ->where('telefono', $request->telefono)
-            ->where('id', '!=', $request->id ?? 0)
+            ->where('num_doc', '!=', $request->num_doc_original ?? '')
             ->exists();
 
         return response()->json(['existe' => $existe]);
@@ -39,24 +81,21 @@ class HuespedController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'nombre'      => 'required|string|max:100',
-            'tipo_doc_id' => 'required|exists:tipos_documento,id',
-            'num_doc'     => 'required|string|max:20|unique:huespedes,num_doc,NULL,id,tipo_doc_id,' . $request->tipo_doc_id,
-            'telefono'    => 'nullable|string|max:15',
+            'nombre'   => 'required|string|max:100',
+            'num_doc'  => 'required|string|max:20|unique:huespedes,num_doc',
+            'telefono' => 'nullable|string|max:15|unique:huespedes,telefono',
         ], [
-            'nombre.required'      => 'El nombre es obligatorio.',
-            'tipo_doc_id.required' => 'El tipo de documento es obligatorio.',
-            'tipo_doc_id.exists'   => 'El tipo de documento no es válido.',
-            'num_doc.required'     => 'El número de documento es obligatorio.',
-            'num_doc.unique'       => 'Este documento ya está registrado.',
+            'nombre.required'  => 'El nombre es obligatorio.',
+            'num_doc.required' => 'El número de documento es obligatorio.',
+            'num_doc.unique'   => 'Este documento ya está registrado.',
+            'telefono.unique'  => 'Este teléfono ya está registrado.',
         ]);
 
         Huesped::create([
-            'nombre'      => $request->nombre,
-            'tipo_doc_id' => $request->tipo_doc_id,
-            'num_doc'     => $request->num_doc,
-            'telefono'    => $request->telefono,
-            'activo'      => 1,
+            'nombre'   => $request->nombre,
+            'num_doc'  => $request->num_doc,
+            'telefono' => $request->telefono,
+            'activo'   => 1,
         ]);
 
         return redirect()->route('huespedes.index')
@@ -65,38 +104,53 @@ class HuespedController extends Controller
 
     public function update(Request $request, Huesped $huesped)
     {
-        $request->validate([
-            'nombre'      => 'required|string|max:100',
-            'tipo_doc_id' => 'required|exists:tipos_documento,id',
-            'num_doc'     => 'required|string|max:20|unique:huespedes,num_doc,' . $huesped->id . ',id,tipo_doc_id,' . $request->tipo_doc_id,
-            'telefono'    => 'nullable|string|max:15',
-            'activo'      => 'required|in:0,1',
-        ], [
-            'nombre.required'      => 'El nombre es obligatorio.',
-            'tipo_doc_id.required' => 'El tipo de documento es obligatorio.',
-            'tipo_doc_id.exists'   => 'El tipo de documento no es válido.',
-            'num_doc.required'     => 'El número de documento es obligatorio.',
-            'num_doc.unique'       => 'Este documento ya está registrado.',
-        ]);
-/*
-        if ((int) $request->activo === 0 && (bool) $huesped->activo === true) {
-            $tieneReservasActivas = $huesped->reservas()
-            ->whereHas('estado', fn($q) => $q->whereIn('nombre', ['pendiente', 'activa']))
-            ->exists();
-
-            if ($tieneReservasActivas) {
-                return redirect()->route('huespedes.index')
-                    ->with('error', 'No puedes desactivar este huésped porque tiene reservas activas.');
-            }
+        // Bloquea edición si el huésped tiene una reserva vigente
+        if ($this->tieneReservasVigentes($huesped->num_doc)) {
+            return redirect()->route('huespedes.index')
+                ->with('error', 'No se puede editar: el huésped tiene una reserva pendiente o activa.');
         }
-*/
-        $huesped->update([
-            'nombre'      => $request->nombre,
-            'tipo_doc_id' => $request->tipo_doc_id,
-            'num_doc'     => $request->num_doc,
-            'telefono'    => $request->telefono,
-            'activo'      => $request->activo,
+
+        $request->validate([
+            'nombre'   => 'required|string|max:100',
+            'num_doc'  => 'required|string|max:20|unique:huespedes,num_doc,' . $huesped->num_doc . ',num_doc',
+            'telefono' => 'nullable|string|max:15|unique:huespedes,telefono,' . $huesped->num_doc . ',num_doc',
+            'activo'   => 'required|in:0,1',
+        ], [
+            'nombre.required'  => 'El nombre es obligatorio.',
+            'num_doc.required' => 'El número de documento es obligatorio.',
+            'num_doc.unique'   => 'Este documento ya está registrado.',
+            'telefono.unique'  => 'Este teléfono ya está registrado.',
         ]);
+
+        $cambiaNumDoc = $request->num_doc !== $huesped->num_doc;
+
+        // Bloquea el cambio de num_doc si el huésped tiene historial de reservas
+        if ($cambiaNumDoc && $this->tieneHistorialReservas($huesped->num_doc)) {
+            return redirect()->route('huespedes.index')
+                ->with('error', 'Este huésped tiene historial de reservas: no se puede cambiar su número de documento. Solo puede actualizar su nombre, teléfono o estado.');
+        }
+
+        // huesped_principal no tiene FK con cascada, se sincroniza a mano
+        if ($cambiaNumDoc) {
+            DB::transaction(function () use ($request, $huesped) {
+                DB::table('reservas')
+                    ->where('huesped_principal', $huesped->num_doc)
+                    ->update(['huesped_principal' => $request->num_doc]);
+
+                $huesped->update([
+                    'nombre'   => $request->nombre,
+                    'num_doc'  => $request->num_doc,
+                    'telefono' => $request->telefono,
+                    'activo'   => $request->activo,
+                ]);
+            });
+        } else {
+            $huesped->update([
+                'nombre'   => $request->nombre,
+                'telefono' => $request->telefono,
+                'activo'   => $request->activo,
+            ]);
+        }
 
         return redirect()->route('huespedes.index')
             ->with('exito', 'Huésped actualizado correctamente.')
@@ -104,27 +158,28 @@ class HuespedController extends Controller
     }
 
     public function destroy(Huesped $huesped)
-    {/*
-        if ($huesped->reservas()->exists()) {
+    {
+        if ($this->tieneReservasVigentes($huesped->num_doc)) {
             return redirect()->route('huespedes.index')
-                ->with('error', 'No puedes eliminar este huésped porque tiene reservas registradas.');
+                ->with('error', 'No se puede eliminar: el huésped tiene una reserva pendiente o activa.');
         }
-*/
-        $huesped->delete();
 
+        if ($this->tieneHistorialReservas($huesped->num_doc)) {
+            return redirect()->route('huespedes.index')
+                ->with('error', 'No se puede eliminar: el huésped tiene historial de reservas. Puede desactivarlo en su lugar.');
+        }
+
+        $huesped->delete();
         return redirect()->route('huespedes.index')
             ->with('exito', 'Huésped eliminado correctamente.');
     }
 
     public function filtrar(Request $request)
     {
-        $query = Huesped::with('tipoDocumento')->orderBy('nombre');
+        $query = Huesped::query()->orderBy('nombre');
 
         if ($request->filled('nombre')) {
             $query->where('nombre', 'like', '%' . $request->nombre . '%');
-        }
-        if ($request->filled('tipo_doc_id')) {
-            $query->where('tipo_doc_id', $request->tipo_doc_id);
         }
         if ($request->filled('num_doc')) {
             $query->where('num_doc', 'like', '%' . $request->num_doc . '%');
@@ -143,28 +198,25 @@ class HuespedController extends Controller
 
         return response()->json([
             'data' => $items->map(fn($h) => [
-                'id'          => $h->id,
-                'nombre'      => $h->nombre,
-                'tipo_doc_id' => $h->tipo_doc_id,
-                'tipo_doc'    => $h->tipoDocumento->nombre ?? '—',
-                'num_doc'     => $h->num_doc,
-                'telefono'    => $h->telefono ?? '—',
-                'activo'      => $h->activo ? 1 : 0,
+                'num_doc'  => $h->num_doc,
+                'nombre'   => $h->nombre,
+                'telefono' => $h->telefono ?? '—',
+                'activo'   => $h->activo ? 1 : 0,
             ]),
-            'total'         => $total,  
+            'total'         => $total,
             'por_pagina'    => $porPagina,
             'pagina_actual' => $pagina,
             'total_paginas' => (int) ceil($total / $porPagina),
         ]);
     }
 
+    // Búsqueda liviana de huéspedes activos, usada desde Reservas
     public function buscar(Request $request)
     {
-        $query = Huesped::with('tipoDocumento')->where('activo', 1);
+        $query = Huesped::where('activo', 1);
 
-        if ($request->filled('tipo_doc_id') && $request->filled('num_doc')) {
-            $query->where('tipo_doc_id', $request->tipo_doc_id)
-                ->where('num_doc', $request->num_doc);
+        if ($request->filled('num_doc')) {
+            $query->where('num_doc', $request->num_doc);
         } elseif ($request->filled('nombre')) {
             $query->where('nombre', 'like', '%' . $request->nombre . '%');
         } else {
@@ -175,10 +227,8 @@ class HuespedController extends Controller
 
         return response()->json([
             'data' => $items->map(fn($h) => [
-                'id'       => $h->id,
-                'nombre'   => $h->nombre,
-                'tipo_doc' => $h->tipoDocumento->nombre ?? '—',
                 'num_doc'  => $h->num_doc,
+                'nombre'   => $h->nombre,
                 'telefono' => $h->telefono ?? '—',
             ]),
         ]);

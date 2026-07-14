@@ -1,58 +1,80 @@
 import { Modal } from 'bootstrap';
 
-// ─── CONFIGURACIÓN HORARIA ───
+// ── 01. CONFIG HORARIA Y UTILIDADES GLOBALES ──
 const CHECKIN_NORMAL = 13 * 60;
 const EARLY_INICIO   = 6 * 60 + 1;
 const EARLY_FIN      = 11 * 60;
 const MADRUGADA_FIN  = 6 * 60;
 const HORAS_MINIMAS  = 2;
 
-const hoy     = new Date();
-const HOY_STR = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
-
 let franjaDetectada = '';
 let pasoActual      = 1;
 
-// ─── UTILIDADES ───
+// Convierte un Date a string compatible con <input datetime-local>
 function toLocalDateTimeString(date) {
     const offset = date.getTimezoneOffset() * 60000;
     const local  = new Date(date.getTime() - offset);
     return local.toISOString().slice(0, 16);
 }
 
+// Nombre del tipo de estadía seleccionado (horas/noches)
 function tipoEstadiaNombre() {
-    const select = document.getElementById('tipoEstadiaId');
-    const option = select.options[select.selectedIndex];
-    return option ? option.dataset.nombre : '';
+    return document.getElementById('tipoEstadiaId').value;
 }
 
-// ─── ALERTA FEEDBACK ───
-function mostrarAlerta(tipo, mensaje) {
-    const clases = {
-        exito: 'alerta-exito',
-        error: 'login-error',
-    };
-    const iconos = {
-        exito: 'bi-check-circle',
-        error: 'bi-exclamation-circle',
-    };
 
-    // Eliminar alerta previa si existe
+// ── 02. ALERTAS DE FEEDBACK Y AVISOS SEMÁNTICOS ──
+
+// Muestra un toast de éxito/error tras una acción AJAX
+function mostrarAlerta(tipo, mensaje) {
+    const clases = { exito: 'alerta-exito', error: 'login-error' };
+    const iconos = { exito: 'bi-check-circle', error: 'bi-exclamation-circle' };
+
     document.querySelectorAll('.alerta-exito, .login-error').forEach(a => a.remove());
 
     const div = document.createElement('div');
     div.className = `${clases[tipo]} mb-3`;
     div.innerHTML = `<i class="bi ${iconos[tipo]}"></i> ${mensaje}`;
 
-    // Insertar antes de la barra de filtros
     const filtros = document.querySelector('.filtros-barra');
     filtros.parentNode.insertBefore(div, filtros);
 
-    // Auto-ocultar a los 4 segundos
     setTimeout(() => div.remove(), 4000);
 }
 
-// ─── PASO 1: LÓGICA HORARIA ───
+const ICONOS_AVISO = {
+    info:        'bi-info-circle-fill',
+    exito:       'bi-check-circle-fill',
+    advertencia: 'bi-exclamation-triangle-fill',
+    peligro:     'bi-exclamation-octagon-fill',
+};
+
+const CLASES_AVISO = {
+    info:        'franja-info',
+    exito:       'franja-exito',
+    advertencia: 'franja-advertencia',
+    peligro:     'franja-peligro',
+};
+
+// Pinta un .aviso-franja con la categoría semántica indicada (info/exito/advertencia/peligro)
+function pintarAviso(elemento, categoria, mensajeHtml, iconoCustom = null) {
+    const icono = iconoCustom ?? ICONOS_AVISO[categoria] ?? ICONOS_AVISO.info;
+    const clase = CLASES_AVISO[categoria] ?? CLASES_AVISO.info;
+
+    elemento.className     = `aviso-franja ${clase}`;
+    elemento.innerHTML     = `<i class="bi ${icono}"></i> ${mensajeHtml}`;
+    elemento.style.display = 'block';
+}
+
+// Oculta un aviso semántico
+function ocultarAviso(elemento) {
+    elemento.style.display = 'none';
+}
+
+
+// ── 03. MODAL CREAR — PASO 1: DATOS GENERALES ──
+
+// Reinicia el Paso 1 al cambiar el tipo de estadía
 window.actualizarPaso1 = function () {
     const fechaEntradaInput = document.getElementById('fechaEntrada');
     const fechaSalidaInput  = document.getElementById('fechaSalida');
@@ -61,7 +83,6 @@ window.actualizarPaso1 = function () {
     fechaSalidaInput.value  = '';
     fechaSalidaInput.min    = '';
 
-    // Ocultar aviso y limpiar clases de franja
     ocultarAvisoFranja();
     franjaDetectada = '';
 
@@ -72,6 +93,7 @@ window.actualizarPaso1 = function () {
     fechaSalidaInput.step  = 3600;
 };
 
+// Valida/ajusta la fecha de entrada y calcula salida sugerida + franja
 window.validarEntrada = function () {
     const fechaEntradaInput = document.getElementById('fechaEntrada');
     const fechaSalidaInput  = document.getElementById('fechaSalida');
@@ -89,7 +111,6 @@ window.validarEntrada = function () {
 
     if (!tipo || !fechaEntradaInput.value) return;
 
-    // Redondear minutos al siguiente múltiplo de 10
     const entrada = new Date(fechaEntradaInput.value);
     const mins    = entrada.getMinutes();
     if (mins % 10 !== 0) {
@@ -118,6 +139,7 @@ window.validarEntrada = function () {
     }
 };
 
+// Valida/ajusta la fecha de salida según el tipo y la franja
 window.validarSalida = function () {
     const fechaEntradaInput = document.getElementById('fechaEntrada');
     const fechaSalidaInput  = document.getElementById('fechaSalida');
@@ -148,6 +170,7 @@ window.validarSalida = function () {
     }
 };
 
+// Determina la franja horaria según la hora de entrada (en minutos)
 function detectarFranja(horaEnMinutos) {
     if (horaEnMinutos >= 0 && horaEnMinutos <= MADRUGADA_FIN)          return 'madrugada';
     if (horaEnMinutos >= EARLY_INICIO && horaEnMinutos <= EARLY_FIN)   return 'early';
@@ -155,6 +178,7 @@ function detectarFranja(horaEnMinutos) {
     return 'normal';
 }
 
+// Calcula la fecha/hora de checkout según la franja detectada
 function calcularCheckout(entrada, franja) {
     const salida = new Date(entrada);
     if (franja === 'madrugada') {
@@ -166,35 +190,25 @@ function calcularCheckout(entrada, franja) {
     return salida;
 }
 
-// ─── AVISO FRANJA: usa classList, no style.* ───
-const FRANJAS_CLASES = ['franja-horas', 'franja-madrugada', 'franja-early', 'franja-intermedio', 'franja-normal'];
-
 function ocultarAvisoFranja() {
-    const aviso = document.getElementById('avisoFranja');
-    aviso.style.display = 'none';
-    aviso.classList.remove(...FRANJAS_CLASES);
+    ocultarAviso(document.getElementById('avisoFranja'));
 }
 
+// Muestra el aviso de franja con la categoría semántica correspondiente
 function mostrarAvisoFranja(franja) {
     const aviso        = document.getElementById('avisoFranja');
-    const texto        = document.getElementById('textoFranja');
     const fechaEntrada = document.getElementById('fechaEntrada').value;
     const fechaSalida  = document.getElementById('fechaSalida').value;
     const tipo         = tipoEstadiaNombre();
 
-    // ── HORAS ──
     if (tipo === 'horas') {
         if (!fechaEntrada || !fechaSalida) { ocultarAvisoFranja(); return; }
         const horas      = Math.round((new Date(fechaSalida) - new Date(fechaEntrada)) / 3600000);
         const horasTexto = horas === 1 ? '1 hora' : `${horas} horas`;
-        texto.textContent = `Estadía por horas — Se cobrarán ${horasTexto}.`;
-        aviso.classList.remove(...FRANJAS_CLASES);
-        aviso.classList.add('franja-horas');
-        aviso.style.display = 'block';
+        pintarAviso(aviso, 'info', `Estadía por horas — Se cobrarán ${horasTexto}.`);
         return;
     }
 
-    // ── NOCHES ──
     let noches = 1;
     if (fechaEntrada && fechaSalida) {
         const entrada    = new Date(fechaEntrada);
@@ -208,23 +222,26 @@ function mostrarAvisoFranja(franja) {
     }
 
     const nochesTexto = noches === 1 ? '1 noche' : `${noches} noches`;
+
     const mensajes = {
-        madrugada:  `Ingreso en madrugada — Se cobra ${nochesTexto}. Check out: 11:00 AM.`,
-        early:      `Ingreso temprano — Se cobra ${nochesTexto} + recargo 2 horas. Check out: 11:00 AM.`,
-        intermedio: `Ingreso intermedio — Se cobra ${nochesTexto} sin recargo. Check out: 11:00 AM.`,
-        normal:     `Se cobra ${nochesTexto}. Check out: 11:00 AM.`,
+        madrugada:  { cat: 'info',        texto: `Ingreso en madrugada — Se cobra ${nochesTexto}. Check out: 11:00 AM.` },
+        early:      { cat: 'advertencia', texto: `Ingreso temprano — Se cobra ${nochesTexto} + recargo 2 horas. Check out: 11:00 AM.` },
+        intermedio: { cat: 'exito',       texto: `Ingreso intermedio — Se cobra ${nochesTexto} sin recargo. Check out: 11:00 AM.` },
+        normal:     { cat: 'info',        texto: `Se cobra ${nochesTexto}. Check out: 11:00 AM.` },
     };
 
-    if (!mensajes[franja]) { ocultarAvisoFranja(); return; }
+    const msg = mensajes[franja];
+    if (!msg) { ocultarAvisoFranja(); return; }
 
-    texto.textContent = mensajes[franja];
-    aviso.classList.remove(...FRANJAS_CLASES);
-    aviso.classList.add(`franja-${franja}`);
-    aviso.style.display = 'block';
+    pintarAviso(aviso, msg.cat, msg.texto);
 }
 
-// ─── CAMBIAR PASO ───
+
+// ── 04. MODAL CREAR — NAVEGACIÓN DEL WIZARD ──
+
+// Avanza/retrocede entre pasos, valida el paso actual y dispara carga de datos
 window.cambiarPaso = function (direccion) {
+    if (window.cambiandoPaso) return;
     if (direccion === 1 && pasoActual === 1 && !validarPaso1()) return;
     if (direccion === 1 && pasoActual === 2 && !validarPaso2()) return;
     if (direccion === 1 && pasoActual === 3 && !validarPaso3()) return;
@@ -255,34 +272,106 @@ function validarPaso1() {
     const tipo    = document.getElementById('tipoEstadiaId').value;
     const entrada = document.getElementById('fechaEntrada').value;
     const salida  = document.getElementById('fechaSalida').value;
+    const errorEl = document.getElementById('paso1ErrorGeneral');
+
     if (!tipo || !entrada || !salida) {
-        alert('Complete todos los campos obligatorios.');
+        errorEl.style.display = 'block';
         return false;
     }
+    errorEl.style.display = 'none';
     return true;
 }
 
 function validarPaso2() {
+    const errorEl = document.getElementById('paso2ErrorSeleccion');
     if (habitacionesSeleccionadas.length === 0) {
-        alert('Seleccione al menos una habitación.');
+        errorEl.style.display = 'block';
         return false;
     }
+    errorEl.style.display = 'none';
     return true;
 }
 
 function validarPaso3() {
-    if (huespedесSeleccionados.length === 0) {
-        alert('Agregue al menos un huésped.');
+    const errorEl = document.getElementById('paso3ErrorGeneral');
+
+    if (huespedesSeleccionados.length === 0) {
+        errorEl.textContent   = 'Agregue al menos un huésped.';
+        errorEl.style.display = 'block';
         return false;
     }
+    if (maxHuespedesPermitido > 0 && huespedesSeleccionados.length > maxHuespedesPermitido) {
+        errorEl.textContent   = `Excede el límite de ${maxHuespedesPermitido} huésped(es) para las habitaciones seleccionadas.`;
+        errorEl.style.display = 'block';
+        return false;
+    }
+    if (!huespedesSeleccionados.some(h => h.principal)) {
+        errorEl.textContent   = 'Debe marcar un huésped como principal.';
+        errorEl.style.display = 'block';
+        return false;
+    }
+    errorEl.style.display = 'none';
     return true;
 }
 
-// ─── FILTROS ───
-let paginaActual = 1;
+function validarPaso4() {
+    const monto  = parseFloat(document.getElementById('paso4MontoPago').value) || 0;
+    const metodo = document.getElementById('paso4MetodoId').value;
+    const errorMetodoEl = document.getElementById('paso4ErrorMetodo');
+    const errorMontoEl  = document.getElementById('paso4ErrorMonto');
 
-window.buscarReservas = function (pagina = 1, esInicial = false) {
+    if (!metodo) {
+        errorMetodoEl.style.display = 'block';
+        return false;
+    }
+    errorMetodoEl.style.display = 'none';
+
+    if (monto < paso4MontoMinimo) {
+        errorMontoEl.textContent   = `El mínimo es S/ ${paso4MontoMinimo.toFixed(2)}`;
+        errorMontoEl.style.display = 'block';
+        return false;
+    }
+    if (monto > paso4MontoTotal) {
+        errorMontoEl.textContent   = `No puede superar el total de S/ ${paso4MontoTotal.toFixed(2)}`;
+        errorMontoEl.style.display = 'block';
+        return false;
+    }
+    errorMontoEl.style.display = 'none';
+
+    if (!paso4MetodoEsEfectivo()) {
+        const numOp = document.getElementById('paso4NumeroOperacion').value.trim();
+        if (!numOp) {
+            document.getElementById('paso4ErrorNumeroOperacion').style.display = 'block';
+            return false;
+        }
+    }
+
+    return true;
+}
+
+// Pide confirmación si el usuario ya avanzó de paso antes de cerrar el wizard
+window.confirmarCierreCrear = function () {
+    if (pasoActual > 1) {
+        if (!confirm('Si cierra ahora perderá los datos ingresados en esta reserva. ¿Desea continuar?')) {
+            return;
+        }
+    }
+    Modal.getInstance(document.getElementById('modalCrear')).hide();
+};
+
+
+// ── 05. FILTROS Y BÚSQUEDA (TABLA PRINCIPAL) ──
+let paginaActual = 1;
+let esVistaInicial   = false;
+let controladorBusqueda = null;
+
+// Consulta reservas filtradas y pinta la tabla
+window.buscarReservas = function (pagina = 1, esInicial = esVistaInicial) {
     paginaActual = pagina;
+    esVistaInicial = esInicial;
+
+    if (controladorBusqueda) controladorBusqueda.abort();
+    controladorBusqueda = new AbortController();
 
     const params = new URLSearchParams({
         estado_id:     document.getElementById('filtroEstado').value,
@@ -295,8 +384,12 @@ window.buscarReservas = function (pagina = 1, esInicial = false) {
 
     fetch(`/reservas/filtrar?${params}`, {
         headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content },
+        signal: controladorBusqueda.signal,
     })
-    .then(res => res.json())
+    .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+    })
     .then(resp => {
         const tbody = document.querySelector('#tablaReservas tbody');
         tbody.innerHTML = '';
@@ -307,12 +400,12 @@ window.buscarReservas = function (pagina = 1, esInicial = false) {
                 : 'No se encontraron reservas con los filtros aplicados.';
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="8" style="text-align:center; padding:40px 20px; color:var(--gris-texto);">
-                        <i class="bi bi-search" style="font-size:1.5rem; display:block; margin-bottom:8px; opacity:0.4;"></i>
+                    <td colspan="8" class="paso2-estado">
+                        <i class="bi bi-search"></i>
                         ${msg}
                     </td>
                 </tr>`;
-            document.getElementById('paginacion').style.display = 'none';
+            document.getElementById('paginacion').classList.remove('activo');
             return;
         }
 
@@ -348,25 +441,37 @@ window.buscarReservas = function (pagina = 1, esInicial = false) {
         });
 
         renderizarPaginacion(resp.pagina_actual, resp.total_paginas);
+    })
+    .catch(err => {
+        if (err.name === 'AbortError') return;
+        console.error('Error buscando reservas:', err);
+        mostrarAlerta('error', 'Ocurrió un error al cargar las reservas.');
     });
 };
 
+// Limpia la barra de filtros y vuelve a buscar desde la página 1
 window.limpiarFiltros = function () {
     document.getElementById('filtroEstado').value       = '';
-    document.getElementById('filtroFechaEntrada').value = HOY_STR;
+    document.getElementById('filtroFechaEntrada').value = '';
     document.getElementById('filtroHuesped').value      = '';
     document.getElementById('filtroHabitacion').value   = '';
-    window.buscarReservas(1);
+    window.buscarReservas(1, true);
 };
 
-// ─── PAGINACIÓN ───
+
+// ── 06. PAGINACIÓN (TABLA PRINCIPAL) ──
+
+// Genera los botones de paginación según página actual y total
 function renderizarPaginacion(actual, total) {
     const contenedor = document.getElementById('paginacion');
 
-    if (total <= 1) { contenedor.style.display = 'none'; return; }
+    if (total <= 1) {
+        contenedor.classList.remove('activo');
+        return;
+    }
 
-    contenedor.style.display = 'flex';
-    contenedor.innerHTML     = '';
+    contenedor.classList.add('activo');
+    contenedor.innerHTML = '';
 
     const btn = (i, label = null, disabled = false, activo = false) => `
         <button class="btn-pagina ${activo ? 'btn-pagina-activo' : ''} ${disabled ? 'btn-pagina-disabled' : ''}"
@@ -374,7 +479,7 @@ function renderizarPaginacion(actual, total) {
             ${label ?? i}
         </button>`;
 
-    const puntos = `<span style="padding:0 6px; color:var(--gris-texto); align-self:center;">...</span>`;
+    const puntos = `<span class="paginacion-puntos">...</span>`;
 
     contenedor.innerHTML += btn(actual - 1, '<i class="bi bi-chevron-left"></i>', actual === 1);
     contenedor.innerHTML += btn(1, null, false, actual === 1);
@@ -387,23 +492,25 @@ function renderizarPaginacion(actual, total) {
     contenedor.innerHTML += btn(actual + 1, '<i class="bi bi-chevron-right"></i>', actual === total);
 }
 
-// ─── PASO 2: HABITACIONES ───
+
+// ── 07. MODAL CREAR — PASO 2: HABITACIONES ──
 let habitacionesSeleccionadas = [];
 let habitacionesData          = {};
-let habitacionesCargadasPara = '';
+let habitacionesCargadasPara  = '';
 
+// Evita recargar el mapa si los parámetros (fechas/tipo) no cambiaron
 function cargarHabitacionesDisponiblesIfNeeded() {
     const entrada       = document.getElementById('fechaEntrada').value;
     const salida        = document.getElementById('fechaSalida').value;
     const tipoEstadiaId = document.getElementById('tipoEstadiaId').value;
 
-    // Firma única de los parámetros actuales
     const firma = `${entrada}|${salida}|${tipoEstadiaId}`;
 
-    // Si ya se cargó con estos mismos parámetros, no recargar
-    if (firma === habitacionesCargadasPara) return;
+    if (firma === habitacionesCargadasPara) {
+        window.cambiandoPaso = false;
+        return;
+    }
 
-    // Parámetros cambiaron — resetear selección y recargar
     habitacionesCargadasPara  = firma;
     habitacionesSeleccionadas = [];
     habitacionesData          = {};
@@ -411,7 +518,10 @@ function cargarHabitacionesDisponiblesIfNeeded() {
     cargarHabitacionesDisponibles();
 }
 
+// Consulta al servidor las habitaciones disponibles y renderiza el mapa
 function cargarHabitacionesDisponibles() {
+    window.cambiandoPaso = true;
+
     document.getElementById('paso2Cargando').style.display = 'block';
     document.getElementById('paso2Mapa').style.display     = 'none';
     document.getElementById('paso2Vacio').style.display    = 'none';
@@ -420,7 +530,7 @@ function cargarHabitacionesDisponibles() {
     const params = new URLSearchParams({
         fecha_entrada:   document.getElementById('fechaEntrada').value,
         fecha_salida:    document.getElementById('fechaSalida').value,
-        tipo_estadia_id: document.getElementById('tipoEstadiaId').value,
+        tipo_estadia: document.getElementById('tipoEstadiaId').value,
     });
 
     fetch(`/reservas/habitaciones-disponibles?${params}`, {
@@ -443,16 +553,20 @@ function cargarHabitacionesDisponibles() {
 
             renderizarMapa(resp.pisos, resp.tipo_nombre);
             document.getElementById('paso2Mapa').style.display = 'block';
+        })
+        .finally(() => {
+            window.cambiandoPaso = false;
         });
 }
 
+// Renderiza el mapa de habitaciones agrupadas por piso
 function renderizarMapa(pisos, tipoNombre) {
     const mapa = document.getElementById('paso2Mapa');
     mapa.innerHTML = '';
 
     pisos.forEach(p => {
         const seccion = document.createElement('div');
-        seccion.style.marginBottom = '20px';
+        seccion.className = 'piso-seccion';
 
         seccion.innerHTML = `
             <div class="piso-label">Piso ${p.piso}</div>
@@ -475,7 +589,7 @@ function renderizarMapa(pisos, tipoNombre) {
     });
 }
 
-// ─── TOGGLE HABITACIÓN: usa classList, no style.* ───
+// Selecciona/deselecciona una habitación
 window.toggleHabitacion = function (numero) {
     const tarjeta = document.getElementById(`tarjeta-${numero}`);
     const idx     = habitacionesSeleccionadas.indexOf(numero);
@@ -489,11 +603,26 @@ window.toggleHabitacion = function (numero) {
     }
 
     actualizarResumenPaso2();
+
     maxHuespedesPermitido = habitacionesSeleccionadas.reduce(
         (sum, n) => sum + (habitacionesData[n]?.max_huespedes ?? 1), 0
     );
+
+    if (maxHuespedesPermitido > 0 && huespedesSeleccionados.length > maxHuespedesPermitido) {
+        const excedente = huespedesSeleccionados.length - maxHuespedesPermitido;
+        huespedesSeleccionados = huespedesSeleccionados.slice(0, maxHuespedesPermitido);
+
+        if (typeof renderizarSeleccionados === 'function') {
+            renderizarSeleccionados();
+        }
+
+        mostrarAlerta('error',
+            `Se quitaron ${excedente} huésped${excedente !== 1 ? 'es' : ''} porque las habitaciones seleccionadas ya no soportan ese límite.`
+        );
+    }
 };
 
+// Calcula y muestra el resumen de habitaciones seleccionadas + total
 function actualizarResumenPaso2() {
     const resumen = document.getElementById('paso2Resumen');
 
@@ -522,8 +651,7 @@ function actualizarResumenPaso2() {
         const unidades   = franjaDetectada === 'madrugada'
             ? (diffDias === 0 ? 1 : diffDias + 1)
             : (diffDias < 1 ? 1 : diffDias);
-        labelUnidad = unidades === 1 ? '1 noche' : `${unidades} noches`;
-        
+
         labelUnidad = unidades === 1 ? '1 noche' : `${unidades} noches`;
         if (franjaDetectada === 'early') {
             labelUnidad += ' + recargo ingreso temprano';
@@ -544,34 +672,41 @@ function actualizarResumenPaso2() {
     resumen.style.display = 'block';
 }
 
-// ─── PASO 3: HUÉSPEDES ───
-let huespedесSeleccionados = []; // [{id, nombre, tipo_doc, num_doc, telefono}]
-let maxHuespedesPermitido = 0; 
 
+// ── 08. MODAL CREAR — PASO 3: HUÉSPEDES ──
+let huespedesSeleccionados = [];
+let maxHuespedesPermitido  = 0;
+
+// Busca huéspedes por documento o nombre
 window.buscarHuesped = function () {
-    const tipoDoc = document.getElementById('paso3TipoDoc').value;
     const numDoc  = document.getElementById('paso3NumDoc').value.trim();
     const nombre  = document.getElementById('paso3Nombre').value.trim();
+    const errorEl = document.getElementById('paso3ErrorBusqueda');
 
     const params = new URLSearchParams();
-    if (tipoDoc && numDoc) {
-        params.set('tipo_doc_id', tipoDoc);
+    if (numDoc) {
         params.set('num_doc', numDoc);
     } else if (nombre) {
         params.set('nombre', nombre);
     } else {
-        alert('Ingrese tipo + número de documento, o un nombre para buscar.');
+        errorEl.style.display = 'block';
         return;
     }
+    errorEl.style.display = 'none';
+
+    const btnBuscar = document.getElementById('paso3BtnBuscar');
+    btnBuscar.disabled = true;
+    const htmlOriginal = btnBuscar.innerHTML;
+    btnBuscar.innerHTML = '<i class="bi bi-arrow-repeat"></i> Buscando...';
 
     fetch(`/huespedes/buscar?${params}`, {
         headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content },
     })
         .then(res => res.json())
         .then(resp => {
-            const listaEl  = document.getElementById('paso3ListaResultados');
-            const resEl    = document.getElementById('paso3Resultados');
-            const vacioEl  = document.getElementById('paso3Vacio');
+            const listaEl = document.getElementById('paso3ListaResultados');
+            const resEl   = document.getElementById('paso3Resultados');
+            const vacioEl = document.getElementById('paso3Vacio');
 
             listaEl.innerHTML = '';
 
@@ -585,112 +720,127 @@ window.buscarHuesped = function () {
             resEl.style.display   = 'block';
 
             resp.data.forEach(h => {
-                const yaEsta         = huespedесSeleccionados.some(s => s.id === h.id);
-                const limiteAlcanzado = huespedесSeleccionados.length >= maxHuespedesPermitido && maxHuespedesPermitido > 0;
-                const deshabilitado  = yaEsta || (limiteAlcanzado && !yaEsta);
+                const yaEsta = huespedesSeleccionados.some(s => s.numDoc === h.num_doc);
+                const limiteAlcanzado = huespedesSeleccionados.length >= maxHuespedesPermitido && maxHuespedesPermitido > 0;
+                const deshabilitado   = yaEsta || (limiteAlcanzado && !yaEsta);
 
                 const item = document.createElement('div');
                 item.className = 'paso3-item';
                 item.innerHTML = `
                     <span class="huesped-nombre">${h.nombre}</span>
-                    <span class="huesped-doc">${h.tipo_doc.toUpperCase()}</span>
                     <span class="huesped-doc">${h.num_doc}</span>
                     <span class="${h.telefono !== '—' ? 'huesped-tel' : 'huesped-tel-vacio'}">
                         ${h.telefono !== '—' ? h.telefono : '—'}
                     </span>
                     <button type="button"
                         class="btn-agregar-huesped ${yaEsta ? 'btn-agregar-ya' : ''} ${limiteAlcanzado && !yaEsta ? 'btn-agregar-limite' : ''}"
-                        onclick="window.agregarHuesped(${h.id},'${escaparTexto(h.nombre)}','${escaparTexto(h.tipo_doc)}','${escaparTexto(h.num_doc)}','${escaparTexto(h.telefono)}')"
+                        onclick="window.agregarHuesped('${escaparTexto(h.num_doc)}','${escaparTexto(h.nombre)}','${escaparTexto(h.telefono)}')"
                         ${deshabilitado ? 'disabled' : ''}>
                         <i class="bi bi-${yaEsta ? 'check-lg' : 'person-plus'}"></i>
                         ${yaEsta ? 'Agregado' : 'Agregar'}
                     </button>`;
                 listaEl.appendChild(item);
             });
+        })
+        .finally(() => {
+            btnBuscar.disabled  = false;
+            btnBuscar.innerHTML = htmlOriginal;
         });
 };
 
+// Escapa comillas para insertar valores dentro de atributos onclick
 function escaparTexto(str) {
     return String(str).replace(/'/g, "\\'").replace(/"/g, '&quot;');
 }
 
-window.agregarHuesped = function (id, nombre, tipoDoc, numDoc, telefono) {
-    if (huespedесSeleccionados.some(h => h.id === id)) return;
-    if (maxHuespedesPermitido > 0 && huespedесSeleccionados.length >= maxHuespedesPermitido) return;
+// Agrega un huésped a la lista de seleccionados del Paso 3
+window.agregarHuesped = function (numDoc, nombre, telefono) {
+    if (huespedesSeleccionados.some(h => h.numDoc === numDoc)) return;
+    if (maxHuespedesPermitido > 0 && huespedesSeleccionados.length >= maxHuespedesPermitido) return;
 
-    huespedесSeleccionados.push({ id, nombre, tipoDoc, numDoc, telefono });
+    const esPrimero = huespedesSeleccionados.length === 0;
+    huespedesSeleccionados.push({ numDoc, nombre, telefono, principal: esPrimero });
+
     renderizarSeleccionados();
     actualizarContadorHuespedes();
 
-    // Deshabilitar el botón en resultados
     const lista = document.getElementById('paso3ListaResultados');
     lista.querySelectorAll('button').forEach(btn => {
-        if (btn.onclick && btn.onclick.toString().includes(`agregarHuesped(${id},`)) {
-            btn.disabled   = true;
+        if (btn.getAttribute('onclick')?.includes(`agregarHuesped('${numDoc}',`)) {
+            btn.disabled  = true;
             btn.classList.add('btn-agregar-ya');
-            btn.innerHTML  = '<i class="bi bi-check-lg"></i> Agregado';
+            btn.innerHTML = '<i class="bi bi-check-lg"></i> Agregado';
         }
     });
 };
 
-window.quitarHuesped = function (id) {
-    huespedесSeleccionados = huespedесSeleccionados.filter(h => h.id !== id);
+// Quita un huésped de la lista de seleccionados del Paso 3
+window.quitarHuesped = function (numDoc) {
+    const eraPrincipal = huespedesSeleccionados.find(h => h.numDoc === numDoc)?.principal;
+    huespedesSeleccionados = huespedesSeleccionados.filter(h => h.numDoc !== numDoc);
+
+    if (eraPrincipal && huespedesSeleccionados.length > 0) {
+        huespedesSeleccionados[0].principal = true;
+    }
+
     renderizarSeleccionados();
     actualizarContadorHuespedes();
 
-    // Rehabilitar en resultados si está visible
     const lista = document.getElementById('paso3ListaResultados');
     lista.querySelectorAll('button').forEach(btn => {
-        const match = btn.getAttribute('onclick')?.match(/agregarHuesped\((\d+),/);
-        if (match && parseInt(match[1]) === id) {
-            btn.disabled   = false;
+        const match = btn.getAttribute('onclick')?.match(/agregarHuesped\('([^']+)',/);
+        if (match && match[1] === numDoc) {
+            btn.disabled  = false;
             btn.classList.remove('btn-agregar-ya');
-            btn.innerHTML  = '<i class="bi bi-plus-lg"></i> Agregar';
+            btn.innerHTML = '<i class="bi bi-plus-lg"></i> Agregar';
         }
     });
+};
+
+window.marcarPrincipal = function (numDoc) {
+    huespedesSeleccionados.forEach(h => h.principal = (h.numDoc === numDoc));
+    renderizarSeleccionados();
 };
 
 window.limpiarBuscadorHuesped = function () {
-    document.getElementById('paso3TipoDoc').value        = '';
-    document.getElementById('paso3NumDoc').value         = '';
-    document.getElementById('paso3Nombre').value         = '';
+    document.getElementById('paso3NumDoc').value              = '';
+    document.getElementById('paso3Nombre').value              = '';
     document.getElementById('paso3ListaResultados').innerHTML = '';
     document.getElementById('paso3Resultados').style.display  = 'none';
     document.getElementById('paso3Vacio').style.display       = 'none';
 };
 
-// ─── ACTUALIZAR CONTADOR Y AVISO DE LÍMITE ───
+// Actualiza el badge contador y el aviso de límite alcanzado
 function actualizarContadorHuespedes() {
-    const total  = huespedесSeleccionados.length;
+    const total  = huespedesSeleccionados.length;
     const limite = maxHuespedesPermitido;
     const badge  = document.getElementById('paso3ContadorBadge');
     const aviso  = document.getElementById('paso3AvisoLimite');
 
     if (badge) {
-        badge.textContent     = limite > 0 ? `${total} / ${limite}` : total;
-        badge.style.background = (limite > 0 && total >= limite)
-            ? 'linear-gradient(135deg, #dc3545, #bb2d3b)'
-            : 'linear-gradient(135deg, var(--dorado), var(--dorado-oscuro))';
+        badge.textContent = limite > 0 ? `${total} / ${limite}` : total;
+        badge.classList.toggle('badge-contador-limite', limite > 0 && total >= limite);
     }
 
     if (aviso) {
         if (limite > 0 && total >= limite) {
-            aviso.textContent   = `Límite alcanzado: máximo ${limite} huésped${limite !== 1 ? 'es' : ''} para las habitaciones seleccionadas.`;
-            aviso.style.display = 'block';
+            pintarAviso(aviso, 'advertencia',
+                `Límite alcanzado: máximo ${limite} huésped${limite !== 1 ? 'es' : ''} para las habitaciones seleccionadas.`);
         } else {
-            aviso.style.display = 'none';
+            ocultarAviso(aviso);
         }
     }
 }
 
+// Renderiza la lista de huéspedes seleccionados con botón "Quitar"
 function renderizarSeleccionados() {
     const contenedor = document.getElementById('paso3ListaSeleccionados');
     const seccion    = document.getElementById('paso3Seleccionados');
-    const badge      = document.getElementById('paso3ContadorBadge');
 
     contenedor.innerHTML = '';
+    actualizarContadorHuespedes();
 
-    if (huespedесSeleccionados.length === 0) {
+    if (huespedesSeleccionados.length === 0) {
         seccion.style.display = 'none';
         return;
     }
@@ -698,38 +848,45 @@ function renderizarSeleccionados() {
     actualizarContadorHuespedes();
     seccion.style.display = 'block';
 
-    huespedесSeleccionados.forEach(h => {
+    huespedesSeleccionados.forEach(h => {
         const item = document.createElement('div');
         item.className = 'paso3-seleccionado-item';
         item.innerHTML = `
+            <label class="huesped-principal-radio" title="Marcar como huésped principal">
+                <input type="radio" name="huespedPrincipal"
+                    ${h.principal ? 'checked' : ''}
+                    onchange="window.marcarPrincipal('${h.numDoc}')">
+            </label>
             <span class="huesped-nombre">${h.nombre}</span>
-            <span class="huesped-doc">${h.tipoDoc.toUpperCase()}</span>
             <span class="huesped-doc">${h.numDoc}</span>
             <span class="${h.telefono !== '—' ? 'huesped-tel' : 'huesped-tel-vacio'}">
                 ${h.telefono !== '—' ? h.telefono : '—'}
             </span>
+            ${h.principal ? '<span class="badge-principal">Principal</span>' : ''}
             <button type="button" class="btn-quitar-huesped"
-                onclick="window.quitarHuesped(${h.id})" title="Quitar">
+                onclick="window.quitarHuesped('${h.numDoc}')" title="Quitar">
                 <i class="bi bi-x-lg"></i>
             </button>`;
         contenedor.appendChild(item);
     });
 }
 
-// ─── PASO 4: PAGOS ───
+
+// ── 09. MODAL CREAR — PASO 4: PAGOS Y CONFIRMACIÓN ──
 let paso4MontoTotal  = 0;
 let paso4MontoMinimo = 0;
 let paso4EsInmediata = false;
 
+// Calcula desglose, total, mínimo de pago y aviso de ocupación inmediata
 window.inicializarPaso4 = function () {
-    const entrada    = new Date(document.getElementById('fechaEntrada').value);
-    const ahora      = new Date();
+    const entrada     = new Date(document.getElementById('fechaEntrada').value);
+    const ahora       = new Date();
     const diffMinutos = (entrada - ahora) / 60000;
-    paso4EsInmediata = diffMinutos <= 10;
+    paso4EsInmediata  = diffMinutos <= 10;
 
-    const tipo      = tipoEstadiaNombre();
-    const fechaEnt  = new Date(document.getElementById('fechaEntrada').value);
-    const fechaSal  = new Date(document.getElementById('fechaSalida').value);
+    const tipo     = tipoEstadiaNombre();
+    const fechaEnt = new Date(document.getElementById('fechaEntrada').value);
+    const fechaSal = new Date(document.getElementById('fechaSalida').value);
 
     let montoBase  = 0;
     let montoEarly = 0;
@@ -780,7 +937,6 @@ window.inicializarPaso4 = function () {
         ? paso4MontoTotal
         : Math.ceil(paso4MontoTotal * 0.5 * 100) / 100;
 
-    // Renderizar filas
     const contenedor = document.getElementById('paso4FilasDesglose');
     contenedor.innerHTML = '';
     filas.forEach(f => {
@@ -793,65 +949,84 @@ window.inicializarPaso4 = function () {
 
     document.getElementById('paso4Total').textContent = `S/ ${paso4MontoTotal.toFixed(2)}`;
 
-    // Mínimo label
     document.getElementById('paso4MinimoLabel').textContent = paso4EsInmediata
         ? '(pago completo requerido)'
         : `(mínimo 50%: S/ ${paso4MontoMinimo.toFixed(2)})`;
 
-    // Aviso ocupación
     const aviso = document.getElementById('paso4AvisoOcupacion');
     if (paso4EsInmediata) {
-        aviso.textContent = 'Ocupación inmediata — se requiere el pago total antes de ingresar.';
-        aviso.className   = 'aviso-franja franja-early';
-        aviso.style.display = 'block';
+        pintarAviso(aviso, 'advertencia', 'Ocupación inmediata — se requiere el pago total antes de ingresar.');
     } else {
-        aviso.style.display = 'none';
+        ocultarAviso(aviso);
     }
 
-    // Setear mínimo en el input
     document.getElementById('paso4MontoPago').min   = paso4MontoMinimo;
     document.getElementById('paso4MontoPago').max   = paso4MontoTotal;
     document.getElementById('paso4MontoPago').value = paso4MontoMinimo.toFixed(2);
-
     document.getElementById('paso4ErrorMonto').style.display = 'none';
+    document.getElementById('paso4ErrorNumeroOperacion').style.display = 'none';
+
+    const metodoSelect  = document.getElementById('paso4MetodoId');
+    const opcionMetodo  = metodoSelect.options[metodoSelect.selectedIndex];
+    const esEfectivo    = (opcionMetodo?.dataset.nombre ?? '') === 'efectivo';
+    document.getElementById('paso4GrupoNumeroOperacion').style.display =
+        (metodoSelect.value !== '' && !esEfectivo) ? 'block' : 'none';
+};
+
+function paso4MetodoEsEfectivo() {
+    const select = document.getElementById('paso4MetodoId');
+    const opcion = select.options[select.selectedIndex];
+    return (opcion?.dataset.nombre ?? '') === 'efectivo';
+}
+
+window.onCambioMetodoPago = function () {
+    const grupo = document.getElementById('paso4GrupoNumeroOperacion');
+    const select = document.getElementById('paso4MetodoId');
+
+    if (select.value !== '' && !paso4MetodoEsEfectivo()) {
+        grupo.style.display = 'block';
+    } else {
+        grupo.style.display = 'none';
+        document.getElementById('paso4NumeroOperacion').value = '';
+        document.getElementById('paso4ErrorNumeroOperacion').style.display = 'none';
+    }
+};
+
+window.validarNumeroOperacion = function () {
+    const valor   = document.getElementById('paso4NumeroOperacion').value.trim();
+    const errorEl = document.getElementById('paso4ErrorNumeroOperacion');
+    errorEl.style.display = valor ? 'none' : 'block';
 };
 
 window.validarMontoPago = function () {
-    const monto  = parseFloat(document.getElementById('paso4MontoPago').value) || 0;
+    const monto   = parseFloat(document.getElementById('paso4MontoPago').value) || 0;
     const errorEl = document.getElementById('paso4ErrorMonto');
 
     if (monto < paso4MontoMinimo) {
-        errorEl.textContent  = `El mínimo es S/ ${paso4MontoMinimo.toFixed(2)}`;
+        errorEl.textContent   = `El mínimo es S/ ${paso4MontoMinimo.toFixed(2)}`;
         errorEl.style.display = 'block';
     } else if (monto > paso4MontoTotal) {
-        errorEl.textContent  = `No puede superar el total de S/ ${paso4MontoTotal.toFixed(2)}`;
+        errorEl.textContent   = `No puede superar el total de S/ ${paso4MontoTotal.toFixed(2)}`;
         errorEl.style.display = 'block';
     } else {
         errorEl.style.display = 'none';
     }
 };
 
-function validarPaso4() {
-    const monto   = parseFloat(document.getElementById('paso4MontoPago').value) || 0;
-    const metodo  = document.getElementById('paso4MetodoId').value;
-
-    if (!metodo) {
-        alert('Seleccione un método de pago.');
-        return false;
-    }
-    if (monto < paso4MontoMinimo) {
-        alert(`El monto mínimo es S/ ${paso4MontoMinimo.toFixed(2)}`);
-        return false;
-    }
-    if (monto > paso4MontoTotal) {
-        alert(`El monto no puede superar S/ ${paso4MontoTotal.toFixed(2)}`);
-        return false;
-    }
-    return true;
-}
-
+// Envía la reserva completa (fechas, habitaciones, huéspedes, pago) al servidor
 window.confirmarReserva = function () {
-    if (!validarPaso4()) return;
+    const montoIngresadoPrevio = parseFloat(document.getElementById('paso4MontoPago').value) || 0;
+    window.inicializarPaso4();
+
+    const montoInput = document.getElementById('paso4MontoPago');
+    if (montoIngresadoPrevio >= paso4MontoMinimo && montoIngresadoPrevio <= paso4MontoTotal) {
+        montoInput.value = montoIngresadoPrevio.toFixed(2);
+    }
+
+    if (!validarPaso4()) {
+        mostrarAlerta('error', 'Los montos se actualizaron por el tiempo transcurrido. Verifique el monto a pagar antes de continuar.');
+        return;
+    }
 
     const btnConfirmar = document.getElementById('btnConfirmar');
     btnConfirmar.disabled  = true;
@@ -860,7 +1035,7 @@ window.confirmarReserva = function () {
     const payload = {
         fecha_entrada:   document.getElementById('fechaEntrada').value,
         fecha_salida:    document.getElementById('fechaSalida').value,
-        tipo_estadia_id: document.getElementById('tipoEstadiaId').value,
+        tipo_estadia: document.getElementById('tipoEstadiaId').value,
         observacion:     document.querySelector('input[name="observacion"]').value,
         franja:          franjaDetectada || 'normal',
         habitaciones:    habitacionesSeleccionadas.map(numero => {
@@ -879,10 +1054,15 @@ window.confirmarReserva = function () {
             }
             return { numero, unidades };
         }),
-        huespedes:  huespedесSeleccionados.map(h => h.id),
+        huespedes:  huespedesSeleccionados.map(h => h.numDoc),
+        huesped_principal:  huespedesSeleccionados.find(h => h.principal)?.numDoc,
         monto_pago: parseFloat(document.getElementById('paso4MontoPago').value),
         metodo_id:  document.getElementById('paso4MetodoId').value,
     };
+
+    if (!paso4MetodoEsEfectivo()) {
+        payload.numero_operacion = document.getElementById('paso4NumeroOperacion').value.trim();
+    }
 
     fetch('/reservas', {
         method:  'POST',
@@ -896,27 +1076,29 @@ window.confirmarReserva = function () {
         .then(res => res.json())
         .then(resp => {
             if (resp.error) {
-                alert(resp.error);
+                mostrarAlerta('error', resp.error);
                 btnConfirmar.disabled  = false;
-                btnConfirmar.innerHTML = '<i class="bi bi-check-lg"></i> Confirmar Reserva';
+                btnConfirmar.innerHTML = 'Confirmar Reserva';
                 return;
             }
-            // ── Resetear botón ANTES de cerrar ──
             btnConfirmar.disabled  = false;
-            btnConfirmar.innerHTML = '<i class="bi bi-check-lg"></i> Confirmar Reserva';
+            btnConfirmar.innerHTML = 'Confirmar Reserva';
             document.getElementById('modalCrear').querySelector('[data-bs-dismiss="modal"]').click();
             window.buscarReservas(1);
             mostrarAlerta('exito', 'Reserva creada correctamente.');
         })
         .catch(err => {
             console.error('FETCH ERROR:', err);
-            alert('Ocurrió un error al guardar la reserva.');
+            mostrarAlerta('error', 'Ocurrió un error al guardar la reserva.');
             btnConfirmar.disabled  = false;
-            btnConfirmar.innerHTML = '<i class="bi bi-check-lg"></i> Confirmar Reserva';
+            btnConfirmar.innerHTML = 'Confirmar Reserva';
         });
 };
 
-// ─── DROPDOWN DE ACCIONES POR RESERVA ───
+
+// ── 10. DROPDOWN DE ACCIONES POR RESERVA (TABLA PRINCIPAL) ──
+
+// Construye el trigger y el menú flotante de acciones según los permisos de la reserva
 function construirAcciones(r) {
     const items = [];
 
@@ -925,10 +1107,11 @@ function construirAcciones(r) {
             <i class="bi bi-eye"></i> Ver detalle
         </button>`);
 
-    if (r.puede_checkin) {
+    if (r.puede_pago) {
         items.push(`
-            <button class="item-accion" onclick="window.checkinReserva(${r.id})">
-                <i class="bi bi-box-arrow-in-right"></i> Check-in
+            <button class="item-accion" onclick="window.pagoReserva(${r.id})">
+                <i class="bi bi-cash-coin"></i> Registrar pago
+                <span class="item-accion-saldo">S/ ${r.saldo_pendiente.toFixed(2)}</span>
             </button>`);
     }
 
@@ -942,25 +1125,23 @@ function construirAcciones(r) {
     if (r.puede_reasignar) {
         items.push(`
             <button class="item-accion" onclick="window.reasignarReserva(${r.id})">
-                <i class="bi bi-arrow-left-right"></i> Reasignar Habitación
-            </button>`);
-    }
-
-    if (r.puede_pago) {
-        items.push(`
-            <button class="item-accion" onclick="window.pagoReserva(${r.id})">
-                <i class="bi bi-cash-coin"></i> Registrar pago
-                <span class="item-accion-saldo">S/ ${r.saldo_pendiente.toFixed(2)}</span>
+                <i class="bi bi-arrow-left-right"></i> Reasignar Habitaciones
             </button>`);
     }
 
     if (r.puede_huespedes) {
         items.push(`
-            <button class="item-accion" onclick="window.huespedесReserva(${r.id})">
+            <button class="item-accion" onclick="window.huespedesReserva(${r.id})">
                 <i class="bi bi-people"></i> Editar huéspedes
             </button>`);
     }
-    
+
+    if (r.puede_checkin) {
+        items.push(`
+            <button class="item-accion" onclick="window.checkinReserva(${r.id})">
+                <i class="bi bi-box-arrow-in-right"></i> Check-in
+            </button>`);
+    }
 
     if (r.puede_extension) {
         items.push(`
@@ -983,7 +1164,6 @@ function construirAcciones(r) {
             </button>`);
     }
 
-    // El menú se inyecta en el body, no dentro del trigger
     const menuId = `menu-reserva-${r.id}`;
 
     return `
@@ -994,41 +1174,34 @@ function construirAcciones(r) {
                 <i class="bi bi-three-dots-vertical"></i>
             </button>
         </div>
-        <div class="acciones-menu" id="${menuId}" style="display:none;">
+        <div class="acciones-menu" id="${menuId}">
             ${items.join('')}
         </div>`;
 }
 
+// Abre/cierra el menú flotante y lo posiciona respecto al botón trigger
 window.toggleAcciones = function (btn, menuId) {
     const menu    = document.getElementById(menuId);
-    const abierto = menu.style.display === 'block';
+    const abierto = menu.classList.contains('activo');
 
-    // Cierra todos
     cerrarTodosLosMenus();
 
     if (abierto) return;
 
-    // Posicionar con fixed según el botón
-    const rect        = btn.getBoundingClientRect();
-    const alturaMenu  = menu.offsetHeight || 300; // estimado antes de mostrar
-    const espacioAbajo = window.innerHeight - rect.bottom;
+    const rect          = btn.getBoundingClientRect();
+    const espacioAbajo  = window.innerHeight - rect.bottom;
     const espacioArriba = rect.top;
 
-    menu.style.display = 'block';
+    menu.classList.add('activo');
 
-    // Recalcular altura real ya visible
     const alturaReal = menu.offsetHeight;
 
-    // Decidir si abre hacia arriba o hacia abajo
     if (espacioAbajo < alturaReal && espacioArriba > alturaReal) {
-        // Abre hacia arriba
-        menu.style.top  = (rect.top - alturaReal + window.scrollY) + 'px';
+        menu.style.top = (rect.top - alturaReal + window.scrollY) + 'px';
     } else {
-        // Abre hacia abajo
-        menu.style.top  = (rect.bottom + window.scrollY + 4) + 'px';
+        menu.style.top = (rect.bottom + window.scrollY + 4) + 'px';
     }
 
-    // Alinear a la derecha del botón
     const leftMenu = rect.right - menu.offsetWidth;
     menu.style.left = Math.max(8, leftMenu) + 'px';
 
@@ -1036,32 +1209,25 @@ window.toggleAcciones = function (btn, menuId) {
 };
 
 function cerrarTodosLosMenus() {
-    document.querySelectorAll('.acciones-menu').forEach(m => m.style.display = 'none');
+    document.querySelectorAll('.acciones-menu').forEach(m => m.classList.remove('activo'));
     document.querySelectorAll('.btn-acciones-trigger').forEach(b => b.classList.remove('activo'));
 }
 
-// Cierra al hacer click fuera
-document.addEventListener('click', function (e) {
-    if (!e.target.closest('.acciones-dropdown') && !e.target.closest('.acciones-menu')) {
-        cerrarTodosLosMenus();
-    }
-});
+// ── 11. ACCIÓN: VER DETALLE (MODAL VER) ──
 
-// Cierra al hacer scroll
-window.addEventListener('scroll', cerrarTodosLosMenus, true);
-
+// Carga y pinta toda la info de la reserva (habitaciones, huéspedes, pagos, extensiones, saldo)
 window.verReserva = function (id) {
     cerrarTodosLosMenus();
 
-    document.getElementById('verReservaId').textContent = `#${id}`;
-    document.getElementById('verCargando').style.display  = 'block';
-    document.getElementById('verContenido').style.display = 'none';
+    document.getElementById('verReservaId').textContent    = `#${id}`;
+    document.getElementById('verCargando').style.display   = 'block';
+    document.getElementById('verContenido').style.display  = 'none';
 
     const modal = new Modal(document.getElementById('modalVer'));
     modal.show();
 
     fetch(`/reservas/${id}`, {
-        headers: { 
+        headers: {
             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
             'Accept': 'application/json',
         },
@@ -1071,16 +1237,15 @@ window.verReserva = function (id) {
             return res.json();
         })
         .then(r => {
-            console.log('RESPUESTA SHOW:', r);
-            // Cabecera
-            document.getElementById('verTipo').textContent      = r.tipo_estadia;
-            document.getElementById('verEntrada').textContent   = r.fecha_entrada;
-            document.getElementById('verSalida').textContent    = r.fecha_salida;
-            document.getElementById('verUsuario').textContent   = r.registrado_por;
-            document.getElementById('verCreatedAt').textContent = r.created_at;
+            const esPorHoras = r.tipo_estadia === 'Horas';
+
+            document.getElementById('verTipo').textContent        = r.tipo_estadia;
+            document.getElementById('verEntrada').textContent     = r.fecha_entrada;
+            document.getElementById('verSalida').textContent      = r.fecha_salida;
+            document.getElementById('verUsuario').textContent     = r.registrado_por;
+            document.getElementById('verCreatedAt').textContent   = r.created_at;
             document.getElementById('verObservacion').textContent = r.observacion;
 
-            // Badge estado
             const estadoBadge = {
                 pendiente:  'badge-estado-reservada',
                 activa:     'badge-estado-disponible',
@@ -1091,30 +1256,54 @@ window.verReserva = function (id) {
             badge.className   = `badge-estado ${estadoBadge[r.estado] ?? ''}`;
             badge.textContent = r.estado.charAt(0).toUpperCase() + r.estado.slice(1);
 
-            // Habitaciones
+            // Suma monto y cantidad de extensiones por N° de habitación
+            const extensionesPorHabitacion = {};
+            r.extensiones.forEach(e => {
+                e.habitaciones.forEach(h => {
+                    if (!extensionesPorHabitacion[h.numero]) {
+                        extensionesPorHabitacion[h.numero] = { monto: 0, cantidad: 0 };
+                    }
+                    extensionesPorHabitacion[h.numero].monto    += parseFloat(h.monto);
+                    extensionesPorHabitacion[h.numero].cantidad += e.cantidad;
+                });
+            });
+
             const habsEl = document.getElementById('verHabitaciones');
-            habsEl.innerHTML = r.habitaciones.map(h => `
+            habsEl.innerHTML = r.habitaciones.map(h => {
+                const unidad = esPorHoras
+                    ? `${h.tiempo_estadia}h`
+                    : `${h.tiempo_estadia} ${h.tiempo_estadia === 1 ? 'noche' : 'noches'}`;
+
+                const ext = extensionesPorHabitacion[h.numero];
+                let extraTexto = '';
+                if (ext) {
+                    const unidadExt = esPorHoras
+                        ? `${ext.cantidad}h`
+                        : `${ext.cantidad} ${ext.cantidad === 1 ? 'noche' : 'noches'}`;
+                    extraTexto = ` + S/ ${ext.monto.toFixed(2)} <span class="ver-tag">${unidadExt}</span>`;
+                }
+
+                return `
                 <div class="ver-fila">
                     <span class="ver-fila-label">N° ${h.numero} · ${h.tipo}</span>
                     <span class="ver-fila-valor">
                         S/ ${h.precio_aplicado}
-                        ${h.horas ? `<span class="ver-tag">${h.horas}h</span>` : ''}
+                        ${h.tiempo_estadia ? `<span class="ver-tag">${unidad}</span>` : ''}
+                        ${extraTexto}
                     </span>
-                </div>`).join('');
+                </div>`;
+            }).join('');
 
-            // Huéspedes
             const huespEl = document.getElementById('verHuespedes');
             huespEl.innerHTML = r.huespedes.map(h => `
                 <div class="ver-fila">
                     <span class="ver-fila-label">${h.nombre}</span>
                     <span class="ver-fila-valor">
-                        <span class="ver-tag">${h.tipo_doc}</span>
                         ${h.num_doc}
-                        ${h.telefono !== '—' ? `· ${h.telefono}` : ''}
+                        · ${h.telefono}
                     </span>
                 </div>`).join('');
 
-            // Pagos
             const pagosEl = document.getElementById('verPagos');
             if (r.pagos.length === 0) {
                 pagosEl.innerHTML = '<p class="ver-vacio">Sin pagos registrados.</p>';
@@ -1125,22 +1314,34 @@ window.verReserva = function (id) {
                             ${p.fecha}
                             <span class="ver-tag">${p.tipo}</span>
                             <span class="ver-tag">${p.metodo}</span>
+                            ${p.numero_operacion ? `<span class="ver-tag"><i class="bi bi-hash"></i>${p.numero_operacion}</span>` : ''}
+                            ${p.comprobante ? `<span class="ver-tag">${p.comprobante.serie}-${p.comprobante.numero}</span>` : ''}
                         </span>
-                        <span class="ver-fila-valor">S/ ${p.monto}</span>
+                        <span class="ver-fila-valor">
+                            S/ ${p.monto}
+                            ${p.comprobante ? `
+                                <a href="/pagos/${p.id}/comprobante" target="_blank"
+                                    class="btn-ver-comprobante" title="Ver comprobante">
+                                    <i class="bi bi-receipt"></i>
+                                </a>` : ''}
+                        </span>
                     </div>`).join('');
             }
 
-            // Extensiones
             const extSeccion = document.getElementById('verSeccionExtensiones');
             const extEl      = document.getElementById('verExtensiones');
             if (r.extensiones.length === 0) {
                 extSeccion.style.display = 'none';
             } else {
                 extSeccion.style.display = 'block';
-                extEl.innerHTML = r.extensiones.map(e => `
+                extEl.innerHTML = r.extensiones.map(e => {
+                    const unidadExt = esPorHoras
+                        ? `${e.cantidad}h`
+                        : `${e.cantidad} ${e.cantidad === 1 ? 'noche' : 'noches'}`;
+                    return `
                     <div class="ver-extension">
                         <div class="ver-extension-header">
-                            <span><i class="bi bi-clock"></i> +${e.cantidad}h · ${e.fecha}</span>
+                            <span><i class="bi bi-clock"></i> +${unidadExt} · ${e.fecha}</span>
                             ${e.pago ? `<span>S/ ${e.pago.monto} · ${e.pago.metodo}</span>` : ''}
                         </div>
                         <div class="ver-extension-habs">
@@ -1148,171 +1349,79 @@ window.verReserva = function (id) {
                                 `<span class="ver-tag">N°${h.numero} · S/${h.monto}</span>`
                             ).join('')}
                         </div>
+                    </div>`;
+                }).join('');
+            }
+
+            const devSeccion = document.getElementById('verSeccionDevoluciones');
+            const devEl      = document.getElementById('verDevoluciones');
+            if (!r.devoluciones || r.devoluciones.length === 0) {
+                devSeccion.style.display = 'none';
+            } else {
+                devSeccion.style.display = 'block';
+                devEl.innerHTML = r.devoluciones.map(d => `
+                    <div class="ver-fila">
+                        <span class="ver-fila-label">
+                            ${d.fecha}
+                            <span class="ver-tag">${d.origen}</span>
+                            <span class="ver-tag">${d.metodo}</span>
+                            ${d.numero_operacion ? `<span class="ver-tag">${d.numero_operacion}</span>` : ''}
+                        </span>
+                        <span class="ver-fila-valor">
+                            Devuelto: S/ ${d.monto_devuelto}
+                            ${parseFloat(d.monto_retenido) > 0 ? ` · Retenido: S/ ${d.monto_retenido}` : ''}
+                        </span>
                     </div>`).join('');
             }
 
-            // Saldo
+            const compSeccion = document.getElementById('verSeccionComprobante');
+            const compEl      = document.getElementById('verComprobante');
+            if (!r.comprobante) {
+                compSeccion.style.display = 'none';
+            } else {
+                compSeccion.style.display = 'block';
+                const c = r.comprobante;
+                compEl.innerHTML = `
+                    <div class="ver-fila">
+                        <span class="ver-fila-label">
+                            <span class="ver-tag">${c.tipo}</span>
+                            ${c.serie}-${c.numero}
+                            ${c.ruc ? `<span class="ver-tag">RUC ${c.ruc}</span>` : ''}
+                        </span>
+                        <span class="ver-fila-valor">
+                            ${c.razon_social ? c.razon_social : ''}
+                            <a href="/reservas/${r.id}/comprobante" target="_blank"
+                                class="btn-ver-comprobante" title="Ver comprobante">
+                                <i class="bi bi-receipt"></i>
+                            </a>
+                        </span>
+                    </div>`;
+            }
+
             document.getElementById('verMontoTotal').textContent  = `S/ ${r.monto_total}`;
             document.getElementById('verMontoPagado').textContent = `S/ ${r.monto_pagado}`;
             const saldoEl = document.getElementById('verSaldo');
-            saldoEl.textContent  = `S/ ${r.saldo}`;
-            saldoEl.style.color  = parseFloat(r.saldo) > 0 ? '#dc3545' : '#198754';
+            saldoEl.textContent = `S/ ${r.saldo}`;
+            saldoEl.classList.toggle('ver-saldo-positivo', parseFloat(r.saldo) > 0);
+            saldoEl.classList.toggle('ver-saldo-cero', parseFloat(r.saldo) <= 0);
 
             document.getElementById('verCargando').style.display  = 'none';
             document.getElementById('verContenido').style.display = 'block';
         })
         .catch(err => {
             console.error('Error cargando reserva:', err);
-            document.getElementById('verCargando').innerHTML = 
+            document.getElementById('verCargando').innerHTML =
                 '<i class="bi bi-exclamation-circle"></i> Error al cargar la reserva.';
         });
 };
 
-// ─── CHECK-IN ───
-let checkinReservaId = null;
 
-window.checkinReserva = function (id) {
-    cerrarTodosLosMenus();
-    checkinReservaId = id;
-
-    document.getElementById('checkinReservaId').textContent      = `#${id}`;
-    document.getElementById('checkinCargando').style.display     = 'block';
-    document.getElementById('checkinContenido').style.display    = 'none';
-    document.getElementById('checkinBtnConfirmar').style.display = 'none';
-    document.getElementById('checkinMetodoGrupo').style.display  = 'none';
-    document.getElementById('checkinErrorMetodo').style.display  = 'none';
-
-    const modal = new Modal(document.getElementById('modalCheckin'));
-    modal.show();
-
-    fetch(`/reservas/${id}/checkin-info`, {
-        headers: {
-            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-            'Accept': 'application/json',
-        },
-    })
-        .then(res => res.json())
-        .then(resp => {
-            if (resp.error) {
-                document.getElementById('checkinCargando').innerHTML =
-                    `<i class="bi bi-exclamation-circle"></i> ${resp.error}`;
-                return;
-            }
-
-            // Habitaciones
-            const habsEl = document.getElementById('checkinHabitaciones');
-            habsEl.innerHTML = '';
-            resp.habitaciones.forEach(h => {
-                const div = document.createElement('div');
-                div.className = 'ver-fila';
-                if (h.disponible) {
-                    div.innerHTML = `
-                        <span class="ver-fila-label">N° ${h.numero}</span>
-                        <span class="badge-estado badge-estado-disponible">Disponible</span>`;
-                } else {
-                    div.innerHTML = `
-                        <span class="ver-fila-label">N° ${h.numero}</span>
-                        <span class="ver-fila-valor" style="color:#dc3545;">
-                            <i class="bi bi-clock"></i> Disponible a las ${h.disponible_a}
-                        </span>`;
-                }
-                habsEl.appendChild(div);
-            });
-
-            // Aviso
-            const recargoEl = document.getElementById('checkinRecargo');
-            if (!resp.todas_libres) {
-                recargoEl.innerHTML     = `<i class="bi bi-info-circle"></i> Una o más habitaciones no están disponibles aún.`;
-                recargoEl.className     = 'aviso-franja franja-horas';
-                recargoEl.style.display = 'block';
-            } else if (resp.es_por_horas && resp.es_anticipada) {
-                recargoEl.innerHTML = `
-                    <i class="bi bi-info-circle-fill"></i>
-                    El cliente llega antes de su hora reservada. La habitación está libre.<br>
-                    Si hace check-in ahora, la salida será a las <strong>${resp.nueva_salida}</strong>.
-                    Sin costo adicional.`;
-                recargoEl.className     = 'aviso-franja franja-intermedio';
-                recargoEl.style.display = 'block';
-            } else if (resp.hay_recargo) {
-                recargoEl.innerHTML = `
-                    <i class="bi bi-exclamation-triangle-fill"></i>
-                    Ingreso anticipado — se cobrará recargo de <strong>S/ ${resp.recargo.toFixed(2)}</strong> (2 horas por habitación).`;
-                recargoEl.className     = 'aviso-franja franja-early';
-                recargoEl.style.display = 'block';
-                document.getElementById('checkinMetodoGrupo').style.display = 'block';
-            } else {
-                recargoEl.innerHTML     = `<i class="bi bi-check-circle-fill"></i> Habitaciones libres — sin recargo adicional.`;
-                recargoEl.className     = 'aviso-franja franja-normal';
-                recargoEl.style.display = 'block';
-            }
-
-            document.getElementById('checkinCargando').style.display  = 'none';
-            document.getElementById('checkinContenido').style.display = 'block';
-
-            if (resp.todas_libres) {
-                document.getElementById('checkinBtnConfirmar').style.display = 'inline-flex';
-            }
-        })
-        .catch(err => {
-            console.error('Error checkin-info:', err);
-            document.getElementById('checkinCargando').innerHTML =
-                '<i class="bi bi-exclamation-circle"></i> Error al cargar la información.';
-        });
-};
-
-window.confirmarCheckin = function () {
-    const metodo = document.getElementById('checkinMetodoId').value;
-    const btn    = document.getElementById('checkinBtnConfirmar');
-
-    const recargoVisible = document.getElementById('checkinMetodoGrupo').style.display !== 'none';
-    if (recargoVisible && !metodo) {
-        document.getElementById('checkinErrorMetodo').style.display = 'block';
-        return;
-    }
-    document.getElementById('checkinErrorMetodo').style.display = 'none';
-
-    btn.disabled  = true;
-    btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Procesando...';
-
-    const body = recargoVisible ? { metodo_id: metodo } : {};
-
-    fetch(`/reservas/${checkinReservaId}/checkin`, {
-        method: 'POST',
-        headers: {
-            'Content-Type':  'application/json',
-            'Accept':        'application/json',
-            'X-CSRF-TOKEN':  document.querySelector('meta[name="csrf-token"]').content,
-        },
-        body: JSON.stringify(body),
-    })
-        .then(res => res.json())
-        .then(resp => {
-            if (resp.error) {
-                alert(resp.error);
-                btn.disabled  = false;
-                btn.innerHTML = '<i class="bi bi-box-arrow-in-right"></i> Confirmar Check-in';
-                return;
-            }
-            btn.disabled  = false;
-            btn.innerHTML = '<i class="bi bi-box-arrow-in-right"></i> Confirmar Check-in';
-            Modal.getInstance(document.getElementById('modalCheckin')).hide();
-            window.buscarReservas(paginaActual);
-            mostrarAlerta('exito', 'Check-in realizado correctamente.');
-        })
-        .catch(err => {
-            console.error('Error checkin:', err);
-            alert('Ocurrió un error al realizar el check-in.');
-            btn.disabled  = false;
-            btn.innerHTML = '<i class="bi bi-box-arrow-in-right"></i> Confirmar Check-in';
-        });
-};
-
-
-// ─── REGISTRAR PAGO ───
+// ── 12. ACCIÓN: REGISTRAR PAGO (MODAL PAGO) ──
 let pagoReservaActualId  = null;
 let pagoSaldoActual      = 0;
 let pagoMontoTotalActual = 0;
 
+// Abre el modal y carga el saldo actual de la reserva
 window.pagoReserva = function (id) {
     cerrarTodosLosMenus();
 
@@ -1323,16 +1432,21 @@ window.pagoReserva = function (id) {
     document.getElementById('pagoContenido').style.display    = 'none';
     document.getElementById('pagoBtnConfirmar').style.display = 'none';
 
-    // Limpiar estado previo
-    document.getElementById('pagoMonto').value             = '';
-    document.getElementById('pagoMetodoId').value          = '';
+    const btnConfirmar = document.getElementById('pagoBtnConfirmar');
+    btnConfirmar.disabled  = false;
+    btnConfirmar.innerHTML = 'Confirmar Pago';
+
+    document.getElementById('pagoMonto').value              = '';
+    document.getElementById('pagoMetodoId').value           = '';
     document.getElementById('pagoErrorMonto').style.display = 'none';
-    document.getElementById('pagoAvisoTipo').style.display  = 'none';
+    document.getElementById('pagoAvisoTipo').style.display   = 'none';
+    document.getElementById('pagoNumeroOperacion').value               = '';
+    document.getElementById('pagoGrupoNumeroOperacion').style.display  = 'none';
+    document.getElementById('pagoErrorNumeroOperacion').style.display  = 'none';
 
     const modal = new Modal(document.getElementById('modalPago'));
     modal.show();
 
-    // Reutilizamos el endpoint show() para obtener saldos
     fetch(`/reservas/${id}`, {
         headers: {
             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
@@ -1353,7 +1467,6 @@ window.pagoReserva = function (id) {
             document.getElementById('pagoSaldo').textContent       = `S/ ${r.saldo}`;
             document.getElementById('pagoMaximoLabel').textContent = `(máximo S/ ${r.saldo})`;
 
-            // Pre-llenar con el saldo completo
             document.getElementById('pagoMonto').value = pagoSaldoActual.toFixed(2);
             document.getElementById('pagoMonto').max   = pagoSaldoActual;
 
@@ -1387,30 +1500,29 @@ window.validarMontoPagoModal = function () {
     actualizarAvisoPago();
 };
 
+// Muestra si el pago será "final" o un "adelanto"
 function actualizarAvisoPago() {
     const monto   = parseFloat(document.getElementById('pagoMonto').value) || 0;
     const avisoEl = document.getElementById('pagoAvisoTipo');
 
     if (monto <= 0) {
-        avisoEl.style.display = 'none';
+        ocultarAviso(avisoEl);
         return;
     }
 
     const esFinal = Math.abs(monto - pagoSaldoActual) < 0.01;
 
     if (esFinal) {
-        avisoEl.innerHTML = '<i class="bi bi-check-circle-fill"></i> Pago final — quedará sin saldo pendiente.';
-        avisoEl.className   = 'aviso-franja franja-normal';
+        pintarAviso(avisoEl, 'exito', 'Pago final — quedará sin saldo pendiente.');
     } else {
-        avisoEl.innerHTML = `<i class="bi bi-exclamation-triangle-fill"></i> Adelanto — quedará un saldo de S/ ${(pagoSaldoActual - monto).toFixed(2)}.`;
-        avisoEl.className   = 'aviso-franja franja-early';
+        pintarAviso(avisoEl, 'info', `Adelanto — quedará un saldo de S/ ${(pagoSaldoActual - monto).toFixed(2)}.`);
     }
-    avisoEl.style.display = 'block';
 }
 
+// Envía el pago al servidor
 window.confirmarPago = function () {
-    const monto   = parseFloat(document.getElementById('pagoMonto').value) || 0;
-    const metodo  = document.getElementById('pagoMetodoId').value;
+    const monto  = parseFloat(document.getElementById('pagoMonto').value) || 0;
+    const metodo = document.getElementById('pagoMetodoId').value;
 
     if (monto <= 0 || monto > pagoSaldoActual + 0.009) {
         document.getElementById('pagoErrorMonto').style.display = 'block';
@@ -1420,13 +1532,27 @@ window.confirmarPago = function () {
     }
 
     if (!metodo) {
-        alert('Seleccione un método de pago.');
+        document.getElementById('pagoErrorMetodo').style.display = 'block';
         return;
+    }
+    document.getElementById('pagoErrorMetodo').style.display = 'none';
+
+    if (!pagoMetodoEsEfectivo()) {
+        const numOp = document.getElementById('pagoNumeroOperacion').value.trim();
+        if (!numOp) {
+            document.getElementById('pagoErrorNumeroOperacion').style.display = 'block';
+            return;
+        }
     }
 
     const btn = document.getElementById('pagoBtnConfirmar');
     btn.disabled  = true;
     btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Guardando...';
+
+    const body = { monto, metodo_id: metodo };
+    if (!pagoMetodoEsEfectivo()) {
+        body.numero_operacion = document.getElementById('pagoNumeroOperacion').value.trim();
+    }
 
     fetch(`/reservas/${pagoReservaActualId}/pago`, {
         method: 'POST',
@@ -1435,52 +1561,82 @@ window.confirmarPago = function () {
             'Accept':        'application/json',
             'X-CSRF-TOKEN':  document.querySelector('meta[name="csrf-token"]').content,
         },
-        body: JSON.stringify({ monto, metodo_id: metodo }),
+        body: JSON.stringify(body),
     })
         .then(res => res.json())
         .then(resp => {
             if (resp.error) {
-                alert(resp.error);
+                mostrarAlerta('error', resp.error);
                 btn.disabled  = false;
-                btn.innerHTML = '<i class="bi bi-check-lg"></i> Confirmar Pago';
+                btn.innerHTML = 'Confirmar Pago';
                 return;
             }
-
+            btn.disabled  = false;
+            btn.innerHTML = 'Confirmar Pago';
             Modal.getInstance(document.getElementById('modalPago')).hide();
             window.buscarReservas(paginaActual);
             mostrarAlerta('exito', 'Pago registrado correctamente.');
         })
         .catch(err => {
             console.error('Error registrando pago:', err);
-            alert('Ocurrió un error al registrar el pago.');
+            mostrarAlerta('error', 'Ocurrió un error al registrar el pago.');
             btn.disabled  = false;
-            btn.innerHTML = '<i class="bi bi-check-lg"></i> Confirmar Pago';
+            btn.innerHTML = 'Confirmar Pago';
         });
 };
 
-// ─── EDITAR FECHAS/TIPO ───────────────────────────────────────
+function pagoMetodoEsEfectivo() {
+    const select = document.getElementById('pagoMetodoId');
+    const opcion = select.options[select.selectedIndex];
+    return (opcion?.dataset.nombre ?? '') === 'efectivo';
+}
+
+window.onCambioMetodoPagoModal = function () {
+    const grupo = document.getElementById('pagoGrupoNumeroOperacion');
+    const select = document.getElementById('pagoMetodoId');
+
+    if (select.value !== '' && !pagoMetodoEsEfectivo()) {
+        grupo.style.display = 'block';
+    } else {
+        grupo.style.display = 'none';
+        document.getElementById('pagoNumeroOperacion').value = '';
+        document.getElementById('pagoErrorNumeroOperacion').style.display = 'none';
+    }
+};
+
+window.validarNumeroOperacionPago = function () {
+    const valor = document.getElementById('pagoNumeroOperacion').value.trim();
+    document.getElementById('pagoErrorNumeroOperacion').style.display = valor ? 'none' : 'block';
+};
+
+
+// ── 13. ACCIÓN: EDITAR FECHAS/TIPO (MODAL EDITARFECHAS) ──
 let efReservaId      = null;
-let efHabitaciones   = [];     // [{numero, precio_hora_raw, precio_noche_raw}]
+let efHabitaciones   = [];
 let efMontoPagado    = 0;
+let efRecargoPagado  = 0;
 let efFranjaActual   = '';
 let efNuevoTotalCalc = 0;
+let efCreditoTotal   = 0;
+let efDebounceTimer   = null;
+let efConflictoActual = false;
 
-// Reutilizamos las mismas constantes horarias del modal crear
 const EF_CHECKIN_NORMAL = 13 * 60;
 const EF_EARLY_INICIO   = 6 * 60 + 1;
 const EF_EARLY_FIN      = 11 * 60;
 const EF_MADRUGADA_FIN  = 6 * 60;
 
+// Abre el modal y carga datos actuales de la reserva
 window.editarFechasReserva = function (id) {
     cerrarTodosLosMenus();
     efReservaId = id;
 
-    document.getElementById('efReservaId').textContent      = `#${id}`;
-    document.getElementById('efCargando').style.display     = 'block';
-    document.getElementById('efContenido').style.display    = 'none';
-    document.getElementById('efBtnGuardar').style.display   = 'none';
-    document.getElementById('efResumen').style.display      = 'none';
-    document.getElementById('efAvisoFranja').style.display  = 'none';
+    document.getElementById('efReservaId').textContent     = `#${id}`;
+    document.getElementById('efCargando').style.display    = 'block';
+    document.getElementById('efContenido').style.display   = 'none';
+    document.getElementById('efBtnGuardar').style.display  = 'none';
+    document.getElementById('efResumen').style.display     = 'none';
+    document.getElementById('efAvisoFranja').style.display = 'none';
 
     const modal = new Modal(document.getElementById('modalEditarFechas'));
     modal.show();
@@ -1499,30 +1655,28 @@ window.editarFechasReserva = function (id) {
                 return;
             }
 
-            efHabitaciones = resp.habitaciones;
-            efMontoPagado  = resp.monto_pagado;
+            efHabitaciones  = resp.habitaciones;
+            efMontoPagado   = resp.monto_pagado;
+            efRecargoPagado = resp.recargo_pagado;
 
-            // Precargar campos
-            document.getElementById('efTipoEstadiaId').value = resp.tipo_estadia_id;
+            document.getElementById('efTipoEstadiaId').value = resp.tipo_estadia;
             document.getElementById('efFechaEntrada').value  = resp.fecha_entrada;
             document.getElementById('efFechaSalida').value   = resp.fecha_salida;
             document.getElementById('efObservacion').value   = resp.observacion;
 
-            // Detectar franja inicial
-            const entrada  = new Date(resp.fecha_entrada);
-            const horaMin  = entrada.getHours() * 60 + entrada.getMinutes();
+            const entrada = new Date(resp.fecha_entrada);
+            const horaMin = entrada.getHours() * 60 + entrada.getMinutes();
             efFranjaActual = resp.tipo_estadia === 'noches'
                 ? efDetectarFranja(horaMin)
                 : 'horas';
-            
-            // Setear mínimo de fecha entrada = ahora
+
             const ahoraMin = new Date();
             ahoraMin.setSeconds(0, 0);
             document.getElementById('efFechaEntrada').min = toLocalDateTimeString(ahoraMin);
             efRecalcular();
 
-            document.getElementById('efCargando').style.display  = 'none';
-            document.getElementById('efContenido').style.display = 'block';
+            document.getElementById('efCargando').style.display   = 'none';
+            document.getElementById('efContenido').style.display  = 'block';
             document.getElementById('efBtnGuardar').style.display = 'inline-flex';
         })
         .catch(err => {
@@ -1532,7 +1686,6 @@ window.editarFechasReserva = function (id) {
         });
 };
 
-// ── Helpers de franja (misma lógica que el modal crear) ──
 function efDetectarFranja(horaEnMinutos) {
     if (horaEnMinutos >= 0 && horaEnMinutos <= EF_MADRUGADA_FIN) return 'madrugada';
     if (horaEnMinutos >= EF_EARLY_INICIO && horaEnMinutos <= EF_EARLY_FIN) return 'early';
@@ -1541,12 +1694,10 @@ function efDetectarFranja(horaEnMinutos) {
 }
 
 function efTipoNombre() {
-    const sel = document.getElementById('efTipoEstadiaId');
-    return sel.options[sel.selectedIndex]?.dataset?.nombre ?? '';
+    return document.getElementById('efTipoEstadiaId').value;
 }
 
 window.efOnTipoChange = function () {
-    // Al cambiar tipo, resetear fechas y franja
     document.getElementById('efFechaEntrada').value = '';
     document.getElementById('efFechaSalida').value  = '';
     efFranjaActual = '';
@@ -1554,12 +1705,12 @@ window.efOnTipoChange = function () {
     document.getElementById('efResumen').style.display     = 'none';
 };
 
+// Redondea, detecta franja y sugiere salida al cambiar la entrada
 window.efOnEntradaChange = function () {
     const tipo    = efTipoNombre();
     const entrada = document.getElementById('efFechaEntrada').value;
     if (!tipo || !entrada) return;
 
-    // Validar que no sea pasada
     const ahora = new Date();
     ahora.setSeconds(0, 0);
     let entradaDt = new Date(entrada);
@@ -1567,7 +1718,6 @@ window.efOnEntradaChange = function () {
         entradaDt = ahora;
     }
 
-    // Redondear al siguiente múltiplo de 10 minutos (igual que modal crear)
     const mins = entradaDt.getMinutes();
     if (mins % 10 !== 0) {
         const redondeado = Math.ceil(mins / 10) * 10;
@@ -1578,7 +1728,6 @@ window.efOnEntradaChange = function () {
         }
     }
 
-    // Actualizar el input con el valor redondeado
     document.getElementById('efFechaEntrada').value = toLocalDateTimeString(entradaDt);
 
     const horaMin = entradaDt.getHours() * 60 + entradaDt.getMinutes();
@@ -1595,8 +1744,10 @@ window.efOnEntradaChange = function () {
 
     efMostrarAviso();
     efRecalcular();
+    efVerificarDisponibilidad(); 
 };
 
+// Fuerza 11:00 AM si es por noches al cambiar la salida
 window.efOnSalidaChange = function () {
     const tipo    = efTipoNombre();
     const entrada = document.getElementById('efFechaEntrada').value;
@@ -1605,7 +1756,6 @@ window.efOnSalidaChange = function () {
     if (!tipo || !entrada || !salida) return;
 
     if (tipo === 'noches') {
-        // Forzar salida a las 11:00
         const dt = new Date(salida);
         dt.setHours(11, 0, 0, 0);
         document.getElementById('efFechaSalida').value = toLocalDateTimeString(dt);
@@ -1613,6 +1763,7 @@ window.efOnSalidaChange = function () {
 
     efMostrarAviso();
     efRecalcular();
+    efVerificarDisponibilidad(); 
 };
 
 function efCalcularCheckout(entrada, franja) {
@@ -1632,39 +1783,76 @@ function efMostrarAviso() {
     const entrada = document.getElementById('efFechaEntrada').value;
     const salida  = document.getElementById('efFechaSalida').value;
 
-    if (!tipo || !entrada || !salida) { aviso.style.display = 'none'; return; }
+    if (!tipo || !entrada || !salida) { ocultarAviso(aviso); return; }
 
     const entradaDt = new Date(entrada);
     const salidaDt  = new Date(salida);
-    let texto = '';
 
     if (tipo === 'horas') {
         const horas = Math.round((salidaDt - entradaDt) / 3600000);
-        texto = `Estadía por horas — Se cobrarán ${horas === 1 ? '1 hora' : horas + ' horas'}.`;
-        aviso.className = 'aviso-franja franja-horas';
-    } else {
-        const entDia  = new Date(entradaDt.getFullYear(), entradaDt.getMonth(), entradaDt.getDate());
-        const salDia  = new Date(salidaDt.getFullYear(), salidaDt.getMonth(), salidaDt.getDate());
-        const diff    = Math.round((salDia - entDia) / 86400000);
-        const noches  = efFranjaActual === 'madrugada'
-            ? (diff === 0 ? 1 : diff + 1)
-            : (diff < 1 ? 1 : diff);
-        const nText   = noches === 1 ? '1 noche' : `${noches} noches`;
-        const msgs    = {
-            madrugada:  `Ingreso en madrugada — Se cobra ${nText}. Check out: 11:00 AM.`,
-            early:      `Ingreso temprano — Se cobra ${nText} + recargo 2 horas. Check out: 11:00 AM.`,
-            intermedio: `Ingreso intermedio — Se cobra ${nText} sin recargo. Check out: 11:00 AM.`,
-            normal:     `Se cobra ${nText}. Check out: 11:00 AM.`,
-        };
-        texto = msgs[efFranjaActual] ?? '';
-        aviso.className = `aviso-franja franja-${efFranjaActual}`;
+        pintarAviso(aviso, 'info', `Estadía por horas — Se cobrarán ${horas === 1 ? '1 hora' : horas + ' horas'}.`);
+        return;
     }
 
-    aviso.textContent   = texto;
-    aviso.style.display = texto ? 'block' : 'none';
+    const entDia = new Date(entradaDt.getFullYear(), entradaDt.getMonth(), entradaDt.getDate());
+    const salDia = new Date(salidaDt.getFullYear(), salidaDt.getMonth(), salidaDt.getDate());
+    const diff   = Math.round((salDia - entDia) / 86400000);
+    const noches = efFranjaActual === 'madrugada'
+        ? (diff === 0 ? 1 : diff + 1)
+        : (diff < 1 ? 1 : diff);
+    const nText  = noches === 1 ? '1 noche' : `${noches} noches`;
+
+    const msgs = {
+        madrugada:  { cat: 'info',        texto: `Ingreso en madrugada — Se cobra ${nText}. Check out: 11:00 AM.` },
+        early:      { cat: 'advertencia', texto: `Ingreso temprano — Se cobra ${nText} + recargo 2 horas. Check out: 11:00 AM.` },
+        intermedio: { cat: 'exito',       texto: `Ingreso intermedio — Se cobra ${nText} sin recargo. Check out: 11:00 AM.` },
+        normal:     { cat: 'info',        texto: `Se cobra ${nText}. Check out: 11:00 AM.` },
+    };
+
+    const msg = msgs[efFranjaActual];
+    if (msg) {
+        pintarAviso(aviso, msg.cat, msg.texto);
+    } else {
+        ocultarAviso(aviso);
+    }
 }
 
-// ── Recálculo central ──
+function efVerificarDisponibilidad() {
+    const tipo    = document.getElementById('efTipoEstadiaId').value;
+    const entrada = document.getElementById('efFechaEntrada').value;
+    const salida  = document.getElementById('efFechaSalida').value;
+    if (!tipo || !entrada || !salida) return;
+
+    clearTimeout(efDebounceTimer);
+    efDebounceTimer = setTimeout(() => {
+        const params = new URLSearchParams({ fecha_entrada: entrada, fecha_salida: salida });
+
+        fetch(`/reservas/${efReservaId}/editar-fechas-disponibilidad?${params}`, {
+            headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content },
+        })
+            .then(res => res.json())
+            .then(resp => {
+                const aviso = document.getElementById('efAvisoConflicto');
+                efConflictoActual = !resp.disponible;
+
+                if (!resp.disponible) {
+                    const habs = resp.conflictos.map(n => `N°${n}`).join(', ');
+                    pintarAviso(aviso, 'peligro',
+                        `<strong>Sin disponibilidad</strong><br>La(s) habitación(es) ${habs} ya no está(n) disponible(s) en este rango. Use "Reasignar Habitaciones" o elija otras fechas.`);
+                } else {
+                    ocultarAviso(aviso);
+                }
+
+                document.getElementById('efAvisoFranja').style.display      = efConflictoActual ? 'none' : 'block';
+                document.getElementById('efObservacionGrupo').style.display = efConflictoActual ? 'none' : 'block';
+                document.getElementById('efResumen').style.display          = efConflictoActual ? 'none' : 'block';
+                document.getElementById('efBtnGuardar').style.display       = efConflictoActual ? 'none' : 'inline-flex';
+            })
+            .catch(() => {});
+    }, 400);
+}
+
+// Recalcula el nuevo total y determina el caso (A/B/C/D) según diferencia con lo pagado
 function efRecalcular() {
     const tipo    = efTipoNombre();
     const entrada = document.getElementById('efFechaEntrada').value;
@@ -1677,7 +1865,8 @@ function efRecalcular() {
 
     const entradaDt = new Date(entrada);
     const salidaDt  = new Date(salida);
-    let nuevoTotal  = 0;
+    let nuevoTotal      = 0;
+    let nuevoMontoEarly = 0;
 
     efHabitaciones.forEach(h => {
         if (tipo === 'horas') {
@@ -1692,7 +1881,9 @@ function efRecalcular() {
                 : (diff < 1 ? 1 : diff);
             nuevoTotal += h.precio_noche_raw * noches;
             if (efFranjaActual === 'early') {
-                nuevoTotal += h.precio_hora_raw * 2;
+                const recargoHab = h.precio_hora_raw * 2;
+                nuevoTotal      += recargoHab;
+                nuevoMontoEarly += recargoHab;
             }
         }
     });
@@ -1701,71 +1892,78 @@ function efRecalcular() {
     const diferencia = Math.round((efNuevoTotalCalc - efMontoPagado) * 100) / 100;
     const minimo50   = Math.round(efNuevoTotalCalc * 0.5 * 100) / 100;
 
-    // Mostrar resumen
+    const diferenciaRecargo = Math.max(0, Math.round((nuevoMontoEarly - efRecargoPagado) * 100) / 100);
+    const faltaParaMinimo   = Math.max(0, Math.round((minimo50 - efMontoPagado) * 100) / 100);
+    const minimoRequerido   = Math.max(faltaParaMinimo, diferenciaRecargo);
+
     document.getElementById('efNuevoTotal').textContent  = `S/ ${efNuevoTotalCalc.toFixed(2)}`;
     document.getElementById('efMontoPagado').textContent = `S/ ${efMontoPagado.toFixed(2)}`;
 
-    const saldoEl    = document.getElementById('efSaldo');
-    const labelEl    = document.getElementById('efSaldoLabel');
-    const avisoEl    = document.getElementById('efAvisoCaso');
-    const pagoGrupo  = document.getElementById('efPagoGrupo');
+    const saldoEl   = document.getElementById('efSaldo');
+    const labelEl   = document.getElementById('efSaldoLabel');
+    const avisoEl   = document.getElementById('efAvisoCaso');
+    const pagoGrupo = document.getElementById('efPagoGrupo');
 
-    // ── Caso A: nuevo total mayor y pagado < 50% ──
-    if (efNuevoTotalCalc > efMontoPagado && efMontoPagado < minimo50) {
-        const minimoReq = Math.round((minimo50 - efMontoPagado) * 100) / 100;
-        labelEl.textContent   = 'Saldo pendiente';
-        saldoEl.textContent   = `S/ ${diferencia.toFixed(2)}`;
-        saldoEl.style.color   = '#dc3545';
+    // Caso A: nuevo total mayor y falta cubrir mínimo (50% base y/o recargo nuevo)
+    if (efNuevoTotalCalc > efMontoPagado && minimoRequerido > 0) {
+        document.getElementById('efCreditoGrupo').style.display = 'none';
+        labelEl.textContent = 'Saldo pendiente';
+        saldoEl.textContent = `S/ ${diferencia.toFixed(2)}`;
+        saldoEl.classList.add('ver-saldo-positivo');
+        saldoEl.classList.remove('ver-saldo-cero');
 
-        avisoEl.innerHTML = `<i class="bi bi-exclamation-triangle-fill"></i>
-            El nuevo total requiere un pago adicional mínimo de <strong>S/ ${minimoReq.toFixed(2)}</strong>
-            para cubrir el 50%.`;
-        avisoEl.className     = 'aviso-franja franja-early';
-        avisoEl.style.display = 'block';
-
+        pintarAviso(avisoEl, 'advertencia', `
+            El nuevo total requiere un pago adicional mínimo de <strong>S/ ${minimoRequerido.toFixed(2)}</strong>.
+            ${diferenciaRecargo > 0 ? `<br><small>Incluye S/ ${diferenciaRecargo.toFixed(2)} de recargo por ingreso temprano.</small>` : ''}`);
         document.getElementById('efPagoMinimoLabel').textContent =
-            `(mínimo S/ ${minimoReq.toFixed(2)}, máximo S/ ${diferencia.toFixed(2)})`;
-        document.getElementById('efPagoMonto').min   = minimoReq;
+            `(mínimo S/ ${minimoRequerido.toFixed(2)}, máximo S/ ${diferencia.toFixed(2)})`;
+        document.getElementById('efPagoMonto').min   = minimoRequerido;
         document.getElementById('efPagoMonto').max   = diferencia;
-        document.getElementById('efPagoMonto').value = minimoReq.toFixed(2);
+        document.getElementById('efPagoMonto').value = minimoRequerido.toFixed(2);
         document.getElementById('efPagoError').style.display = 'none';
         pagoGrupo.style.display = 'block';
 
-    // ── Caso B: nuevo total mayor, ya cubre el 50% ──
-    } else if (efNuevoTotalCalc > efMontoPagado && efMontoPagado >= minimo50) {
-        labelEl.textContent   = 'Saldo pendiente';
-        saldoEl.textContent   = `S/ ${diferencia.toFixed(2)}`;
-        saldoEl.style.color   = '#dc3545';
+    // Caso B: nuevo total mayor, ya cubre el mínimo requerido
+    } else if (efNuevoTotalCalc > efMontoPagado && minimoRequerido <= 0) {
+        document.getElementById('efCreditoGrupo').style.display = 'none';
+        labelEl.textContent = 'Saldo pendiente';
+        saldoEl.textContent = `S/ ${diferencia.toFixed(2)}`;
+        saldoEl.classList.add('ver-saldo-positivo');
+        saldoEl.classList.remove('ver-saldo-cero');
 
-        avisoEl.innerHTML     = `<i class="bi bi-check-circle-fill"></i>
-            El pago cubre el mínimo requerido. Se guardará con saldo pendiente para el check-in.`;
-        avisoEl.className     = 'aviso-franja franja-normal';
-        avisoEl.style.display = 'block';
+        pintarAviso(avisoEl, 'info',
+            'El pago cubre el mínimo requerido. Se guardará con saldo pendiente para el check-in.');
         pagoGrupo.style.display = 'none';
 
-    // ── Caso C: nuevo total menor que lo pagado ──
+    // Caso C: nuevo total menor que lo pagado (crédito a favor)
     } else if (efNuevoTotalCalc < efMontoPagado) {
         const credito = Math.round((efMontoPagado - efNuevoTotalCalc) * 100) / 100;
-        labelEl.textContent   = 'Crédito a favor';
-        saldoEl.textContent   = `S/ ${credito.toFixed(2)}`;
-        saldoEl.style.color   = '#198754';
+        labelEl.textContent = 'Crédito a favor';
+        saldoEl.textContent = `S/ ${credito.toFixed(2)}`;
+        saldoEl.classList.add('ver-saldo-cero');
+        saldoEl.classList.remove('ver-saldo-positivo');
 
-        avisoEl.innerHTML     = `<i class="bi bi-info-circle-fill"></i>
-            El nuevo total es menor a lo pagado. El último pago será ajustado automáticamente.`;
-        avisoEl.className     = 'aviso-franja franja-intermedio';
-        avisoEl.style.display = 'block';
+        pintarAviso(avisoEl, 'advertencia',
+            'El nuevo total es menor a lo pagado. Decida cuánto devolver al huésped.');
         pagoGrupo.style.display = 'none';
 
-    // ── Caso D: igual ──
-    } else {
-        labelEl.textContent   = 'Saldo pendiente';
-        saldoEl.textContent   = 'S/ 0.00';
-        saldoEl.style.color   = '#198754';
+        efCreditoTotal = credito;
+        document.getElementById('efCreditoMaximoLabel').textContent = `(máximo S/ ${credito.toFixed(2)})`;
+        document.getElementById('efCreditoMontoDevuelto').max   = credito;
+        document.getElementById('efCreditoMontoDevuelto').value = credito.toFixed(2);
+        document.getElementById('efCreditoError').style.display = 'none';
+        document.getElementById('efCreditoGrupo').style.display = 'block';
+        window.efActualizarInfoRetenido();
 
-        avisoEl.innerHTML     = `<i class="bi bi-check-circle-fill"></i>
-            El total no cambia. Se guardará sin modificar los pagos.`;
-        avisoEl.className     = 'aviso-franja franja-normal';
-        avisoEl.style.display = 'block';
+    // Caso D: el total no cambia
+    } else {
+        document.getElementById('efCreditoGrupo').style.display = 'none';
+        labelEl.textContent = 'Saldo pendiente';
+        saldoEl.textContent = 'S/ 0.00';
+        saldoEl.classList.add('ver-saldo-cero');
+        saldoEl.classList.remove('ver-saldo-positivo');
+
+        pintarAviso(avisoEl, 'exito', 'El total no cambia. Se guardará sin modificar los pagos.');
         pagoGrupo.style.display = 'none';
     }
 
@@ -1789,17 +1987,86 @@ window.efValidarMonto = function () {
     }
 };
 
+// Muestra cuánto queda retenido según lo que se decide devolver
+window.efActualizarInfoRetenido = function () {
+    const devuelto  = parseFloat(document.getElementById('efCreditoMontoDevuelto').value) || 0;
+    const infoEl    = document.getElementById('efCreditoRetenidoInfo');
+    const metodoGrp = document.getElementById('efCreditoMetodoGrupo');
+
+    if (devuelto < 0 || devuelto > efCreditoTotal) {
+        ocultarAviso(infoEl);
+        metodoGrp.style.display = 'none';
+        return;
+    }
+
+    const retenido = Math.round((efCreditoTotal - devuelto) * 100) / 100;
+
+    if (devuelto <= 0) {
+        pintarAviso(infoEl, 'advertencia', `No se devolverá nada. Se retiene el total: S/ ${efCreditoTotal.toFixed(2)}.`);
+        metodoGrp.style.display = 'none';
+    } else if (retenido <= 0.009) {
+        pintarAviso(infoEl, 'exito', 'Se devolverá el crédito completo. Nada queda retenido.');
+        metodoGrp.style.display = 'block';
+    } else {
+        pintarAviso(infoEl, 'info', `Se devuelve S/ ${devuelto.toFixed(2)} y se retiene S/ ${retenido.toFixed(2)}.`);
+        metodoGrp.style.display = 'block';
+    }
+};
+
+window.efValidarCredito = function () {
+    const monto   = parseFloat(document.getElementById('efCreditoMontoDevuelto').value) || 0;
+    const errorEl = document.getElementById('efCreditoError');
+
+    if (monto < 0) {
+        errorEl.textContent   = 'El monto no puede ser negativo.';
+        errorEl.style.display = 'block';
+    } else if (monto > efCreditoTotal) {
+        errorEl.textContent   = `No puede superar el crédito de S/ ${efCreditoTotal.toFixed(2)}`;
+        errorEl.style.display = 'block';
+    } else {
+        errorEl.style.display = 'none';
+    }
+
+    window.efActualizarInfoRetenido();
+};
+
+function efCreditoMetodoEsEfectivo() {
+    const select = document.getElementById('efCreditoMetodo');
+    const opcion = select.options[select.selectedIndex];
+    return (opcion?.dataset.nombre ?? '') === 'efectivo';
+}
+
+window.efOnCambioMetodoCredito = function () {
+    const grupo = document.getElementById('efCreditoGrupoNumeroOperacion');
+    const select = document.getElementById('checkinMetodoId');
+    
+    if (select.value !== '' && !efCreditoMetodoEsEfectivo()) {
+        grupo.style.display = 'block';
+    } else {
+        grupo.style.display = 'none';
+        document.getElementById('efCreditoNumeroOperacion').value = '';
+        document.getElementById('efCreditoErrorNumeroOperacion').style.display = 'none';
+    }
+};
+
+window.efValidarNumeroOperacionCredito = function () {
+    const valor = document.getElementById('efCreditoNumeroOperacion').value.trim();
+    document.getElementById('efCreditoErrorNumeroOperacion').style.display = valor ? 'none' : 'block';
+};
+
+// Guarda los cambios de fechas/tipo (y pago adicional/devolución si aplica)
 window.efGuardar = function () {
     const tipo    = document.getElementById('efTipoEstadiaId').value;
     const entrada = document.getElementById('efFechaEntrada').value;
     const salida  = document.getElementById('efFechaSalida').value;
+    const errorGeneralEl = document.getElementById('efErrorGeneral');
 
     if (!tipo || !entrada || !salida) {
-        alert('Complete todos los campos obligatorios.');
+        errorGeneralEl.style.display = 'block';
         return;
     }
+    errorGeneralEl.style.display = 'none';
 
-    // Validar pago si Caso A (grupo visible)
     const pagoGrupoVisible = document.getElementById('efPagoGrupo').style.display !== 'none';
     if (pagoGrupoVisible) {
         const monto  = parseFloat(document.getElementById('efPagoMonto').value) || 0;
@@ -1812,8 +2079,37 @@ window.efGuardar = function () {
             return;
         }
         if (!metodo) {
-            alert('Seleccione un método de pago.');
+            document.getElementById('efErrorMetodo').style.display = 'block';
             return;
+        }
+        document.getElementById('efErrorMetodo').style.display = 'none';
+        if (!efMetodoEsEfectivo()) {
+            const numOp = document.getElementById('efNumeroOperacion').value.trim();
+            if (!numOp) {
+                document.getElementById('efErrorNumeroOperacion').style.display = 'block';
+                return;
+            }
+        }
+    }
+
+    const creditoGrupoVisible = document.getElementById('efCreditoGrupo').style.display !== 'none';
+    if (creditoGrupoVisible) {
+        const devuelto = parseFloat(document.getElementById('efCreditoMontoDevuelto').value) || 0;
+
+        if (devuelto < 0 || devuelto > efCreditoTotal) {
+            document.getElementById('efCreditoError').style.display = 'block';
+            return;
+        }
+        if (devuelto > 0 && !document.getElementById('efCreditoMetodo').value) {
+            document.getElementById('efCreditoErrorMetodo').style.display = 'block';
+            return;
+        }
+        if (devuelto > 0 && !efCreditoMetodoEsEfectivo()) {
+            const numOpCredito = document.getElementById('efCreditoNumeroOperacion').value.trim();
+            if (!numOpCredito) {
+                document.getElementById('efCreditoErrorNumeroOperacion').style.display = 'block';
+                return;
+            }
         }
     }
 
@@ -1822,7 +2118,7 @@ window.efGuardar = function () {
     btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Guardando...';
 
     const payload = {
-        tipo_estadia_id: tipo,
+        tipo_estadia: tipo,
         fecha_entrada:   entrada,
         fecha_salida:    salida,
         observacion:     document.getElementById('efObservacion').value,
@@ -1832,6 +2128,19 @@ window.efGuardar = function () {
     if (pagoGrupoVisible) {
         payload.monto_pago = parseFloat(document.getElementById('efPagoMonto').value);
         payload.metodo_id  = document.getElementById('efPagoMetodo').value;
+        if (!efMetodoEsEfectivo()) {
+            payload.numero_operacion = document.getElementById('efNumeroOperacion').value.trim();
+        }
+    }
+
+    if (creditoGrupoVisible) {
+        payload.credito_monto_devuelto = parseFloat(document.getElementById('efCreditoMontoDevuelto').value) || 0;
+        if (payload.credito_monto_devuelto > 0) {
+            payload.credito_metodo_id = document.getElementById('efCreditoMetodo').value;
+            if (!efCreditoMetodoEsEfectivo()) {
+                payload.credito_numero_operacion = document.getElementById('efCreditoNumeroOperacion').value.trim();
+            }
+        }
     }
 
     fetch(`/reservas/${efReservaId}/editar-fechas`, {
@@ -1843,13 +2152,31 @@ window.efGuardar = function () {
         },
         body: JSON.stringify(payload),
     })
-        .then(res => res.json())
-        .then(resp => {
+        .then(async res => {
+            let data = null;
+            try { data = await res.json(); } catch (e) { data = null; }
+            return { status: res.status, ok: res.ok, data };
+        })
+        .then(({ status, ok, data }) => {
             btn.disabled  = false;
-            btn.innerHTML = '<i class="bi bi-check-lg"></i> Guardar Cambios';
+            btn.innerHTML = 'Guardar Cambios';
 
-            if (resp.error) {
-                alert(resp.error);
+            if (!ok) {
+                let mensaje = 'Ocurrió un error al guardar los cambios.';
+                if (data?.error) {
+                    mensaje = data.error;
+                } else if (data?.errors) {
+                    mensaje = Object.values(data.errors).flat().join('\n');
+                } else if (data?.message) {
+                    mensaje = data.message;
+                }
+                console.error(`Editar fechas — status ${status}:`, data);
+                mostrarAlerta('error', mensaje);
+                return;
+            }
+
+            if (data?.error) {
+                mostrarAlerta('error', data.error);
                 return;
             }
 
@@ -1858,19 +2185,45 @@ window.efGuardar = function () {
             mostrarAlerta('exito', 'Reserva actualizada correctamente.');
         })
         .catch(err => {
-            console.error('Error guardando fechas:', err);
-            alert('Ocurrió un error al guardar los cambios.');
+            console.error('Error guardando fechas (red/fetch):', err);
+            mostrarAlerta('error', 'Ocurrió un error de conexión al guardar los cambios.');
             btn.disabled  = false;
-            btn.innerHTML = '<i class="bi bi-check-lg"></i> Guardar Cambios';
+            btn.innerHTML = 'Guardar Cambios';
         });
 };
 
-// ─── REASIGNAR HABITACIÓN ─────────────────────────────────────
+function efMetodoEsEfectivo() {
+    const select = document.getElementById('efPagoMetodo');
+    const opcion = select.options[select.selectedIndex];
+    return (opcion?.dataset.nombre ?? '') === 'efectivo';
+}
+
+window.efOnCambioMetodo = function () {
+    const grupo = document.getElementById('efGrupoNumeroOperacion');
+    const select = document.getElementById('efPagoMetodo');
+
+    if (select.value !== '' && !efMetodoEsEfectivo()) {
+        grupo.style.display = 'block';
+    } else {
+        grupo.style.display = 'none';
+        document.getElementById('efNumeroOperacion').value = '';
+        document.getElementById('efErrorNumeroOperacion').style.display = 'none';
+    }
+};
+
+window.efValidarNumeroOperacion = function () {
+    const valor = document.getElementById('efNumeroOperacion').value.trim();
+    document.getElementById('efErrorNumeroOperacion').style.display = valor ? 'none' : 'block';
+};
+
+
+// ── 14. ACCIÓN: REASIGNAR HABITACIONES (MODAL REASIGNAR) ──
 let raReservaId          = null;
-let raHabsData           = [];   // [{numero, tipo_id, tipo_nombre, precio_aplicado, horas, alternativas}]
-let raCambios            = {};   // { numeroActual: numeroNuevo | null }
+let raHabsData           = [];
+let raCambios            = {};
 let raActualSeleccionado = null;
 
+// Abre el modal y carga las habitaciones actuales + sus alternativas
 window.reasignarReserva = function (id) {
     cerrarTodosLosMenus();
     raReservaId          = id;
@@ -1878,13 +2231,13 @@ window.reasignarReserva = function (id) {
     raCambios            = {};
     raActualSeleccionado = null;
 
-    document.getElementById('raReservaId').textContent     = `#${id}`;
-    document.getElementById('raCargando').style.display    = 'block';
-    document.getElementById('raContenido').style.display   = 'none';
-    document.getElementById('raBtnGuardar').style.display  = 'none';
-    document.getElementById('raAvisoSinCambios').style.display  = 'none';
-    document.getElementById('raMapaAlternativas').style.display = 'none';
-    document.getElementById('raSinAlternativas').style.display  = 'none';
+    document.getElementById('raReservaId').textContent          = `#${id}`;
+    document.getElementById('raCargando').style.display         = 'block';
+    document.getElementById('raContenido').style.display        = 'none';
+    document.getElementById('raBtnGuardar').style.display       = 'none';
+    document.getElementById('raAvisoSinCambios').style.display   = 'none';
+    document.getElementById('raMapaAlternativas').style.display  = 'none';
+    document.getElementById('raSinAlternativas').style.display   = 'none';
 
     const modal = new Modal(document.getElementById('modalReasignar'));
     modal.show();
@@ -1905,26 +2258,14 @@ window.reasignarReserva = function (id) {
 
             raHabsData = resp.habitaciones;
 
-            // Inicializar cambios en null (sin cambio)
             raHabsData.forEach(h => {
                 raCambios[h.numero] = null;
             });
 
-            // Info rango
-            document.getElementById('raInfoRango').innerHTML =
-                `<i class="bi bi-calendar-range"></i>
-                 ${resp.fecha_entrada} → ${resp.fecha_salida}
-                 <span style="margin-left:10px; opacity:0.7;">${raUcfirst(resp.tipo_estadia)}</span>`;
-
             raRenderizarActuales();
 
-            // Seleccionar la primera habitación por defecto
-            if (raHabsData.length > 0) {
-                window.raSeleccionarActual(raHabsData[0].numero);
-            }
-
-            document.getElementById('raCargando').style.display  = 'none';
-            document.getElementById('raContenido').style.display = 'block';
+            document.getElementById('raCargando').style.display   = 'none';
+            document.getElementById('raContenido').style.display  = 'block';
             document.getElementById('raBtnGuardar').style.display = 'inline-flex';
         })
         .catch(err => {
@@ -1934,11 +2275,7 @@ window.reasignarReserva = function (id) {
         });
 };
 
-function raUcfirst(str) {
-    return str ? str.charAt(0).toUpperCase() + str.slice(1) : '';
-}
-
-// ── Tarjetas de habitaciones actuales (selector) ──
+// Renderiza las tarjetas de habitaciones actuales (selector)
 function raRenderizarActuales() {
     const contenedor = document.getElementById('raHabsActuales');
     contenedor.innerHTML = '';
@@ -1946,41 +2283,69 @@ function raRenderizarActuales() {
     raHabsData.forEach(h => {
         const cambio = raCambios[h.numero];
         const activa = raActualSeleccionado === h.numero;
+        const tieneCambio = cambio !== null;
 
-        const div = document.createElement('div');
-        div.className = `tarjeta-habitacion ${activa ? 'tarjeta-seleccionada' : ''}`;
-        div.id        = `ra-actual-${h.numero}`;
-        div.onclick   = () => window.raSeleccionarActual(h.numero);
+        let altData = null;
+        if (tieneCambio) {
+            altData = h.alternativas?.find(a => a.numero === cambio) ?? null;
+        }
 
-        div.innerHTML = `
+        const par = document.createElement('div');
+        par.className = 'ra-par';
+
+        const tarjetaActual = document.createElement('div');
+
+        const clases = ['tarjeta-habitacion'];
+        if (activa) clases.push('tarjeta-seleccionada');
+        if (tieneCambio) clases.push('ra-con-cambio');
+
+        tarjetaActual.className = clases.join(' ');
+        tarjetaActual.id        = `ra-actual-${h.numero}`;
+        tarjetaActual.onclick   = () => window.raSeleccionarActual(h.numero);
+        tarjetaActual.innerHTML = `
             <div class="tarjeta-numero">N° ${h.numero}</div>
             <div class="tarjeta-tipo">${h.tipo_nombre}</div>
-            <div class="tarjeta-precio">
-                ${cambio
-                    ? `<i class="bi bi-arrow-right"></i> Pasa a N° ${cambio}`
-                    : `S/ ${h.precio_aplicado}`}
-            </div>`;
+            <div class="tarjeta-precio">S/ ${h.precio_aplicado}</div>
+            ${tieneCambio ? `
+                <button type="button" class="ra-btn-deshacer"
+                    onclick="event.stopPropagation(); window.raDeshacerCambio(${h.numero})">
+                    <i class="bi bi-x-lg"></i></button>` : ''}`;
 
-        contenedor.appendChild(div);
+        par.appendChild(tarjetaActual);
+
+        if (tieneCambio && altData) {
+            const flecha = document.createElement('div');
+            flecha.className = 'ra-flecha';
+            flecha.innerHTML = '<i class="bi bi-arrow-right"></i>';
+
+            const tarjetaDestino = document.createElement('div');
+            tarjetaDestino.className = 'tarjeta-habitacion ra-tarjeta-destino';
+            tarjetaDestino.innerHTML = `
+                <div class="tarjeta-numero">N° ${altData.numero}</div>
+                <div class="tarjeta-tipo">${altData.tipo_nombre}</div>
+                <div class="tarjeta-precio ra-precio-destino">Nuevo</div>`;
+
+            par.appendChild(flecha);
+            par.appendChild(tarjetaDestino);
+        }
+
+        contenedor.appendChild(par);
     });
 }
 
-// ── Selección de habitación actual a reasignar ──
 window.raSeleccionarActual = function (numero) {
     raActualSeleccionado = numero;
     raRenderizarActuales();
     raRenderizarMapa(numero);
 };
 
-// ── Mapa de alternativas por piso (igual a paso2) ──
+// Renderiza el mapa de alternativas por piso para la habitación seleccionada
 function raRenderizarMapa(numeroActual) {
     const habActual = raHabsData.find(h => h.numero === numeroActual);
 
     const mapaWrap   = document.getElementById('raMapaAlternativas');
     const sinAlt     = document.getElementById('raSinAlternativas');
     const contenedor = document.getElementById('raMapaContenedor');
-
-    document.getElementById('raNumeroActual').textContent = numeroActual;
 
     if (!habActual.alternativas || habActual.alternativas.length === 0) {
         mapaWrap.style.display = 'none';
@@ -1992,9 +2357,11 @@ function raRenderizarMapa(numeroActual) {
     mapaWrap.style.display = 'block';
     contenedor.innerHTML   = '';
 
-    // Agrupar por piso (igual que habitacionesDisponibles)
+    const yaAsignados = new Set(Object.values(raCambios).filter(v => v !== null));
+
     const pisos = {};
     habActual.alternativas.forEach(alt => {
+        if (yaAsignados.has(alt.numero)) return;
         const piso = Math.floor(alt.numero / 100);
         if (!pisos[piso]) pisos[piso] = [];
         pisos[piso].push(alt);
@@ -2004,7 +2371,7 @@ function raRenderizarMapa(numeroActual) {
 
     Object.keys(pisos).sort((a, b) => a - b).forEach(piso => {
         const seccion = document.createElement('div');
-        seccion.style.marginBottom = '16px';
+        seccion.className = 'piso-seccion';
 
         seccion.innerHTML = `
             <div class="piso-label">Piso ${piso}</div>
@@ -2022,7 +2389,6 @@ function raRenderizarMapa(numeroActual) {
     });
 }
 
-// ── Toggle de alternativa seleccionada ──
 window.raToggleAlternativa = function (numeroActual, numeroAlt) {
     raCambios[numeroActual] = (raCambios[numeroActual] === numeroAlt) ? null : numeroAlt;
 
@@ -2031,7 +2397,16 @@ window.raToggleAlternativa = function (numeroActual, numeroAlt) {
     document.getElementById('raAvisoSinCambios').style.display = 'none';
 };
 
-// ── Guardar ──
+window.raDeshacerCambio = function (numero) {
+    raCambios[numero] = null;
+    raRenderizarActuales();
+    if (raActualSeleccionado === numero) {
+        raRenderizarMapa(numero);
+    }
+    document.getElementById('raAvisoSinCambios').style.display = 'none';
+};
+
+// Envía los cambios de reasignación al servidor
 window.raGuardar = function () {
     const cambios = Object.entries(raCambios)
         .filter(([de, a]) => a !== null)
@@ -2058,10 +2433,10 @@ window.raGuardar = function () {
         .then(res => res.json())
         .then(resp => {
             btn.disabled  = false;
-            btn.innerHTML = '<i class="bi bi-check-lg"></i> Guardar Cambios';
+            btn.innerHTML = 'Guardar Cambios';
 
             if (resp.error) {
-                alert(resp.error);
+                mostrarAlerta('error', resp.error);
                 return;
             }
 
@@ -2071,32 +2446,32 @@ window.raGuardar = function () {
         })
         .catch(err => {
             console.error('Error reasignando:', err);
-            alert('Ocurrió un error al reasignar las habitaciones.');
+            mostrarAlerta('error', 'Ocurrió un error al reasignar las habitaciones.');
             btn.disabled  = false;
-            btn.innerHTML = '<i class="bi bi-check-lg"></i> Guardar Cambios';
+            btn.innerHTML = 'Guardar Cambios';
         });
 };
 
 
-// ─── EDITAR HUÉSPEDES ──────────────────────────────────────────
-let huespedModalReservaId  = null;
-let huespedModalActuales   = [];   // [{id, nombre, tipo_doc, num_doc, telefono}]
+// ── 15. ACCIÓN: EDITAR HUÉSPEDES (MODAL HUÉSPEDES) ──
+let huespedModalReservaId    = null;
+let huespedModalActuales     = [];
 let huespedModalMaxPermitido = 0;
- 
-window.huespedесReserva = function (id) {
+
+// Abre el modal y carga los huéspedes actuales de la reserva
+window.huespedesReserva = function (id) {
     cerrarTodosLosMenus();
     huespedModalReservaId = id;
- 
-    // Reset UI
-    document.getElementById('huespedReservaId').textContent     = `#${id}`;
-    document.getElementById('huespedCargando').style.display    = 'block';
-    document.getElementById('huespedContenido').style.display   = 'none';
-    document.getElementById('huespedBtnGuardar').style.display  = 'none';
+
+    document.getElementById('huespedReservaId').textContent    = `#${id}`;
+    document.getElementById('huespedCargando').style.display   = 'block';
+    document.getElementById('huespedContenido').style.display  = 'none';
+    document.getElementById('huespedBtnGuardar').style.display = 'none';
     limpiarBuscadorHuespedModalInterno();
- 
+
     const modal = new Modal(document.getElementById('modalHuespedes'));
     modal.show();
- 
+
     fetch(`/reservas/${id}/huespedes-info`, {
         headers: {
             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
@@ -2110,19 +2485,18 @@ window.huespedесReserva = function (id) {
                     `<i class="bi bi-exclamation-circle"></i> ${resp.error}`;
                 return;
             }
- 
-            huespedModalActuales     = resp.huespedes.map(h => ({
-                id:       h.id,
-                nombre:   h.nombre,
-                tipoDoc:  h.tipo_doc,
-                numDoc:   h.num_doc,
-                telefono: h.telefono,
+
+            huespedModalActuales = resp.huespedes.map(h => ({
+                numDoc:    h.num_doc,
+                nombre:    h.nombre,
+                telefono:  h.telefono,
+                principal: h.num_doc === resp.huesped_principal,
             }));
             huespedModalMaxPermitido = resp.max_permitido;
- 
+
             renderizarSeleccionadosModal();
             actualizarContadorModal();
- 
+
             document.getElementById('huespedCargando').style.display   = 'none';
             document.getElementById('huespedContenido').style.display  = 'block';
             document.getElementById('huespedBtnGuardar').style.display = 'inline-flex';
@@ -2133,24 +2507,29 @@ window.huespedесReserva = function (id) {
                 '<i class="bi bi-exclamation-circle"></i> Error al cargar los huéspedes.';
         });
 };
- 
-// ─── BUSCADOR DEL MODAL ────────────────────────────────────────
+
+// Busca huéspedes por documento o nombre (mismo patrón que el Paso 3)
 window.buscarHuespedModal = function () {
-    const tipoDoc = document.getElementById('huespedTipoDoc').value;
     const numDoc  = document.getElementById('huespedNumDoc').value.trim();
     const nombre  = document.getElementById('huespedNombre').value.trim();
- 
+    const errorEl = document.getElementById('huespedErrorBusqueda');
+
     const params = new URLSearchParams();
-    if (tipoDoc && numDoc) {
-        params.set('tipo_doc_id', tipoDoc);
+    if (numDoc) {
         params.set('num_doc', numDoc);
     } else if (nombre) {
         params.set('nombre', nombre);
     } else {
-        alert('Ingrese tipo + número de documento, o un nombre para buscar.');
+        errorEl.style.display = 'block';
         return;
     }
- 
+    errorEl.style.display = 'none';
+
+    const btnBuscar = document.getElementById('huespedBtnBuscar');
+    btnBuscar.disabled = true;
+    const htmlOriginal = btnBuscar.innerHTML;
+    btnBuscar.innerHTML = '<i class="bi bi-arrow-repeat"></i> Buscando...';
+
     fetch(`/huespedes/buscar?${params}`, {
         headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content },
     })
@@ -2159,150 +2538,161 @@ window.buscarHuespedModal = function () {
             const listaEl = document.getElementById('huespedListaResultados');
             const resEl   = document.getElementById('huespedResultados');
             const vacioEl = document.getElementById('huespedVacio');
- 
+
             listaEl.innerHTML = '';
- 
+
             if (!resp.data || resp.data.length === 0) {
                 resEl.style.display   = 'none';
                 vacioEl.style.display = 'block';
                 return;
             }
- 
+
             vacioEl.style.display = 'none';
             resEl.style.display   = 'block';
- 
+
             resp.data.forEach(h => {
-                const yaEsta          = huespedModalActuales.some(s => s.id === h.id);
+                const yaEsta = huespedModalActuales.some(s => s.numDoc === h.num_doc);
                 const limiteAlcanzado = huespedModalActuales.length >= huespedModalMaxPermitido
                                         && huespedModalMaxPermitido > 0;
                 const deshabilitado   = yaEsta || (limiteAlcanzado && !yaEsta);
- 
+
                 const item = document.createElement('div');
                 item.className = 'paso3-item';
                 item.innerHTML = `
                     <span class="huesped-nombre">${h.nombre}</span>
-                    <span class="huesped-doc">${h.tipo_doc.toUpperCase()}</span>
                     <span class="huesped-doc">${h.num_doc}</span>
                     <span class="${h.telefono !== '—' ? 'huesped-tel' : 'huesped-tel-vacio'}">
                         ${h.telefono !== '—' ? h.telefono : '—'}
                     </span>
                     <button type="button"
                         class="btn-agregar-huesped ${yaEsta ? 'btn-agregar-ya' : ''} ${limiteAlcanzado && !yaEsta ? 'btn-agregar-limite' : ''}"
-                        onclick="window.agregarHuespedModal(${h.id},'${escaparTexto(h.nombre)}','${escaparTexto(h.tipo_doc)}','${escaparTexto(h.num_doc)}','${escaparTexto(h.telefono)}')"
+                        onclick="window.agregarHuespedModal('${escaparTexto(h.num_doc)}','${escaparTexto(h.nombre)}','${escaparTexto(h.telefono)}')"
                         ${deshabilitado ? 'disabled' : ''}>
                         <i class="bi bi-${yaEsta ? 'check-lg' : 'person-plus'}"></i>
                         ${yaEsta ? 'Agregado' : 'Agregar'}
                     </button>`;
                 listaEl.appendChild(item);
             });
+        })
+        .finally(() => {
+            btnBuscar.disabled  = false;
+            btnBuscar.innerHTML = htmlOriginal;
         });
 };
- 
-window.agregarHuespedModal = function (id, nombre, tipoDoc, numDoc, telefono) {
-    if (huespedModalActuales.some(h => h.id === id)) return;
+
+window.agregarHuespedModal = function (numDoc, nombre, telefono) {
+    if (huespedModalActuales.some(h => h.numDoc === numDoc)) return;
     if (huespedModalMaxPermitido > 0 && huespedModalActuales.length >= huespedModalMaxPermitido) return;
- 
-    huespedModalActuales.push({ id, nombre, tipoDoc, numDoc, telefono });
+    huespedModalActuales.push({ numDoc, nombre, telefono });
     renderizarSeleccionadosModal();
-    actualizarContadorModal();
- 
-    // Deshabilitar el botón en resultados
+
     document.getElementById('huespedListaResultados')
         .querySelectorAll('button').forEach(btn => {
-            if (btn.getAttribute('onclick')?.includes(`agregarHuespedModal(${id},`)) {
+            if (btn.getAttribute('onclick')?.includes(`agregarHuespedModal('${numDoc}',`)) {
                 btn.disabled  = true;
                 btn.classList.add('btn-agregar-ya');
                 btn.innerHTML = '<i class="bi bi-check-lg"></i> Agregado';
             }
         });
 };
- 
-window.quitarHuespedModal = function (id) {
-    // Mínimo 1 huésped
+
+// Quita un huésped de la reserva (mínimo 1 obligatorio)
+window.quitarHuespedModal = function (numDoc) {
     if (huespedModalActuales.length <= 1) {
-        alert('La reserva debe tener al menos un huésped.');
+        document.getElementById('huespedErrorGeneral').style.display = 'block';
         return;
     }
- 
-    huespedModalActuales = huespedModalActuales.filter(h => h.id !== id);
+
+    const eraPrincipal = huespedModalActuales.find(h => h.numDoc === numDoc)?.principal;
+    huespedModalActuales = huespedModalActuales.filter(h => h.numDoc !== numDoc);
+    if (eraPrincipal && huespedModalActuales.length > 0) {
+        huespedModalActuales[0].principal = true;
+    }
+
     renderizarSeleccionadosModal();
-    actualizarContadorModal();
- 
-    // Rehabilitar en resultados si está visible
+
     document.getElementById('huespedListaResultados')
         .querySelectorAll('button').forEach(btn => {
-            const match = btn.getAttribute('onclick')?.match(/agregarHuespedModal\((\d+),/);
-            if (match && parseInt(match[1]) === id) {
+            const match = btn.getAttribute('onclick')?.match(/agregarHuespedModal\('([^']+)',/);
+            if (match && match[1] === numDoc) {
                 btn.disabled  = false;
                 btn.classList.remove('btn-agregar-ya');
                 btn.innerHTML = '<i class="bi bi-person-plus"></i> Agregar';
             }
         });
 };
- 
+
+window.marcarPrincipalModal = function (numDoc) {
+    huespedModalActuales.forEach(h => h.principal = (h.numDoc === numDoc));
+    renderizarSeleccionadosModal();
+};
+
 window.limpiarBuscadorHuespedModal = function () {
     limpiarBuscadorHuespedModalInterno();
 };
- 
+
 function limpiarBuscadorHuespedModalInterno() {
-    document.getElementById('huespedTipoDoc').value              = '';
-    document.getElementById('huespedNumDoc').value               = '';
-    document.getElementById('huespedNombre').value               = '';
-    document.getElementById('huespedListaResultados').innerHTML  = '';
-    document.getElementById('huespedResultados').style.display   = 'none';
-    document.getElementById('huespedVacio').style.display        = 'none';
+    document.getElementById('huespedNumDoc').value              = '';
+    document.getElementById('huespedNombre').value              = '';
+    document.getElementById('huespedListaResultados').innerHTML = '';
+    document.getElementById('huespedResultados').style.display  = 'none';
+    document.getElementById('huespedVacio').style.display       = 'none';
 }
- 
+
 function actualizarContadorModal() {
     const total  = huespedModalActuales.length;
     const limite = huespedModalMaxPermitido;
     const badge  = document.getElementById('huespedContadorBadge');
     const aviso  = document.getElementById('huespedAvisoLimite');
- 
+
     if (badge) {
-        badge.textContent      = limite > 0 ? `${total} / ${limite}` : total;
-        badge.style.background = (limite > 0 && total >= limite)
-            ? 'linear-gradient(135deg, #dc3545, #bb2d3b)'
-            : 'linear-gradient(135deg, var(--dorado), var(--dorado-oscuro))';
+        badge.textContent = limite > 0 ? `${total} / ${limite}` : total;
+        badge.classList.toggle('badge-contador-limite', limite > 0 && total >= limite);
     }
- 
+
     if (aviso) {
         if (limite > 0 && total >= limite) {
-            aviso.textContent   = `Límite alcanzado: máximo ${limite} huésped${limite !== 1 ? 'es' : ''} para las habitaciones de esta reserva.`;
-            aviso.style.display = 'block';
+            pintarAviso(aviso, 'advertencia',
+                `Límite alcanzado: máximo ${limite} huésped${limite !== 1 ? 'es' : ''} para las habitaciones de esta reserva.`);
         } else {
-            aviso.style.display = 'none';
+            ocultarAviso(aviso);
         }
     }
 }
- 
+
 function renderizarSeleccionadosModal() {
     const contenedor = document.getElementById('huespedListaSeleccionados');
     const seccion    = document.getElementById('huespedSeleccionados');
- 
+
     contenedor.innerHTML = '';
- 
+    actualizarContadorModal(); 
+
     if (huespedModalActuales.length === 0) {
         seccion.style.display = 'none';
         return;
     }
- 
+
     seccion.style.display = 'block';
- 
+
     huespedModalActuales.forEach(h => {
         const esElUltimo = huespedModalActuales.length === 1;
         const item = document.createElement('div');
         item.className = 'paso3-seleccionado-item';
         item.innerHTML = `
+            <label class="huesped-principal-radio" title="Marcar como huésped principal">
+                <input type="radio" name="huespedPrincipalModal"
+                    ${h.principal ? 'checked' : ''}
+                    onchange="window.marcarPrincipalModal('${h.numDoc}')">
+            </label>
             <span class="huesped-nombre">${h.nombre}</span>
-            <span class="huesped-doc">${h.tipoDoc.toUpperCase()}</span>
             <span class="huesped-doc">${h.numDoc}</span>
             <span class="${h.telefono !== '—' ? 'huesped-tel' : 'huesped-tel-vacio'}">
                 ${h.telefono !== '—' ? h.telefono : '—'}
             </span>
+            ${h.principal ? '<span class="badge-principal">Principal</span>' : ''}
             <button type="button"
                 class="btn-quitar-huesped ${esElUltimo ? 'btn-quitar-disabled' : ''}"
-                onclick="window.quitarHuespedModal(${h.id})"
+                onclick="window.quitarHuespedModal('${h.numDoc}')"
                 title="${esElUltimo ? 'Debe quedar al menos un huésped' : 'Quitar'}"
                 ${esElUltimo ? 'disabled' : ''}>
                 <i class="bi bi-x-lg"></i>
@@ -2310,18 +2700,27 @@ function renderizarSeleccionadosModal() {
         contenedor.appendChild(item);
     });
 }
- 
-// ─── GUARDAR CAMBIOS ───────────────────────────────────────────
+
+// Guarda la lista actualizada de huéspedes de la reserva
 window.guardarHuespedes = function () {
+    const errorEl = document.getElementById('huespedErrorGeneral');
+
     if (huespedModalActuales.length === 0) {
-        alert('La reserva debe tener al menos un huésped.');
+        errorEl.textContent   = 'La reserva debe tener al menos un huésped.';
+        errorEl.style.display = 'block';
         return;
     }
- 
+    if (!huespedModalActuales.some(h => h.principal)) {
+        errorEl.textContent   = 'Debe marcar un huésped como principal.';
+        errorEl.style.display = 'block';
+        return;
+    }
+    errorEl.style.display = 'none';
+
     const btn = document.getElementById('huespedBtnGuardar');
     btn.disabled  = true;
     btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Guardando...';
- 
+
     fetch(`/reservas/${huespedModalReservaId}/huespedes`, {
         method: 'PATCH',
         headers: {
@@ -2329,65 +2728,248 @@ window.guardarHuespedes = function () {
             'Accept':        'application/json',
             'X-CSRF-TOKEN':  document.querySelector('meta[name="csrf-token"]').content,
         },
-        body: JSON.stringify({ huespedes: huespedModalActuales.map(h => h.id) }),
+        body: JSON.stringify({
+            huespedes: huespedModalActuales.map(h => h.numDoc),
+            huesped_principal: huespedModalActuales.find(h => h.principal)?.numDoc,
+        }),
     })
         .then(res => res.json())
         .then(resp => {
             if (resp.error) {
-                alert(resp.error);
+                mostrarAlerta('error', resp.error);
                 btn.disabled  = false;
-                btn.innerHTML = '<i class="bi bi-check-lg"></i> Guardar Cambios';
+                btn.innerHTML = 'Guardar Cambios';
                 return;
             }
- 
+
             btn.disabled  = false;
-            btn.innerHTML = '<i class="bi bi-check-lg"></i> Guardar Cambios';
+            btn.innerHTML = 'Guardar Cambios';
             Modal.getInstance(document.getElementById('modalHuespedes')).hide();
             window.buscarReservas(paginaActual);
             mostrarAlerta('exito', 'Huéspedes actualizados correctamente.');
         })
         .catch(err => {
             console.error('Error guardando huéspedes:', err);
-            alert('Ocurrió un error al guardar los huéspedes.');
+            mostrarAlerta('error', 'Ocurrió un error al guardar los huéspedes.');
             btn.disabled  = false;
-            btn.innerHTML = '<i class="bi bi-check-lg"></i> Guardar Cambios';
+            btn.innerHTML = 'Guardar Cambios';
         });
 };
 
-// ─── AGREGAR EXTENSIÓN ────────────────────────────────────────
-let extReservaId      = null;
-let extTipoEstadia    = null;   // 'horas' | 'noches'
-let extMontoCalculado = 0;
-let extHabsDisponibles = [];    // [numero, ...]
- 
+
+// ── 16. ACCIÓN: CHECK-IN (MODAL CHECKIN) ──
+let checkinReservaId = null;
+
+window.checkinReserva = function (id) {
+    cerrarTodosLosMenus();
+    checkinReservaId = id;
+
+    document.getElementById('checkinReservaId').textContent      = `#${id}`;
+    document.getElementById('checkinCargando').style.display     = 'block';
+    document.getElementById('checkinContenido').style.display    = 'none';
+    document.getElementById('checkinBtnConfirmar').style.display = 'none';
+    document.getElementById('checkinMetodoGrupo').style.display  = 'none';
+    document.getElementById('checkinErrorMetodo').style.display  = 'none';
+
+    document.getElementById('checkinNumeroOperacion').value              = '';
+    document.getElementById('checkinGrupoNumeroOperacion').style.display = 'none';
+    document.getElementById('checkinErrorNumeroOperacion').style.display = 'none';
+
+    const modal = new Modal(document.getElementById('modalCheckin'));
+    modal.show();
+
+    fetch(`/reservas/${id}/checkin-info`, {
+        headers: {
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+            'Accept': 'application/json',
+        },
+    })
+        .then(res => res.json())
+        .then(resp => {
+            if (resp.error) {
+                document.getElementById('checkinCargando').innerHTML =
+                    `<i class="bi bi-exclamation-circle"></i> ${resp.error}`;
+                return;
+            }
+
+            const habsEl = document.getElementById('checkinHabitaciones');
+            habsEl.innerHTML = '';
+            resp.habitaciones.forEach(h => {
+                const div = document.createElement('div');
+                div.className = 'ver-fila';
+
+                if (h.disponible) {
+                    div.innerHTML = `
+                        <span class="ver-fila-label">N° ${h.numero}</span>
+                        <span class="badge-estado badge-estado-disponible">Disponible</span>`;
+                } else if (h.motivo === 'estado') {
+                    const badgeClase = h.estado_actual === 'limpieza' ? 'badge-estado-limpieza' : 'badge-estado-mantenimiento';
+                    div.innerHTML = `
+                        <span class="ver-fila-label">N° ${h.numero}</span>
+                        <span class="badge-estado ${badgeClase}">
+                            <i class="bi bi-exclamation-triangle-fill"></i> ${h.estado_actual.charAt(0).toUpperCase() + h.estado_actual.slice(1)}
+                        </span>`;
+                } else {
+                    div.innerHTML = `
+                        <span class="ver-fila-label">N° ${h.numero}</span>
+                        <span class="ver-fila-valor ver-fila-valor-alerta">
+                            <i class="bi bi-clock"></i> Disponible a las ${h.disponible_a}
+                        </span>`;
+                }
+                habsEl.appendChild(div);
+            });
+
+            const recargoEl = document.getElementById('checkinRecargo');
+            const hayNoAptaPorEstado = resp.habitaciones.some(h => h.motivo === 'estado');
+
+            if (!resp.todas_libres && hayNoAptaPorEstado) {
+                pintarAviso(recargoEl, 'peligro',
+                    '<strong>Habitación en limpieza/mantenimiento</strong><br>Debe marcarla como disponible desde el módulo de Habitaciones antes de hacer check-in.');
+            } else if (!resp.todas_libres) {
+                pintarAviso(recargoEl, 'peligro',
+                    '<strong>Habitaciones no disponibles</strong><br>Una o más habitaciones no están libres aún. El check-in no puede realizarse en este momento.');
+            } else if (resp.es_por_horas && resp.es_anticipada) {
+                pintarAviso(recargoEl, 'exito',
+                    `<strong>Ingreso anticipado</strong><br>La habitación está libre. Si hace check-in ahora, la salida quedará a las <strong>${resp.nueva_salida}</strong>. Sin costo adicional.`);
+            } else if (resp.hay_recargo) {
+                pintarAviso(recargoEl, 'advertencia',
+                    `<strong>Ingreso anticipado — recargo aplicable</strong><br>Se cobrarán S/ ${resp.recargo.toFixed(2)} adicionales por 2 horas por habitación. Seleccione un método de pago para continuar.`);
+                document.getElementById('checkinMetodoGrupo').style.display = 'block';
+            } else {
+                pintarAviso(recargoEl, 'exito',
+                    '<strong>Habitaciones libres</strong><br>Sin recargo adicional. Puede proceder con el check-in.');
+            }
+
+            document.getElementById('checkinCargando').style.display  = 'none';
+            document.getElementById('checkinContenido').style.display = 'block';
+
+            if (resp.todas_libres) {
+                document.getElementById('checkinBtnConfirmar').style.display = 'inline-flex';
+            }
+        })
+        .catch(err => {
+            console.error('Error checkin-info:', err);
+            document.getElementById('checkinCargando').innerHTML =
+                '<i class="bi bi-exclamation-circle"></i> Error al cargar la información.';
+        });
+};
+
+// Confirma el check-in, validando método de pago si hay recargo
+window.confirmarCheckin = function () {
+    const metodo = document.getElementById('checkinMetodoId').value;
+    const btn    = document.getElementById('checkinBtnConfirmar');
+
+    const recargoVisible = document.getElementById('checkinMetodoGrupo').style.display !== 'none';
+    if (recargoVisible && !metodo) {
+        document.getElementById('checkinErrorMetodo').style.display = 'block';
+        return;
+    }
+    document.getElementById('checkinErrorMetodo').style.display = 'none';
+
+    if (recargoVisible && !checkinMetodoEsEfectivo()) {
+        const numOp = document.getElementById('checkinNumeroOperacion').value.trim();
+        if (!numOp) {
+            document.getElementById('checkinErrorNumeroOperacion').style.display = 'block';
+            return;
+        }
+    }
+
+    btn.disabled  = true;
+    btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Procesando...';
+
+    const body = recargoVisible ? { metodo_id: metodo } : {};
+    if (recargoVisible && !checkinMetodoEsEfectivo()) {
+        body.numero_operacion = document.getElementById('checkinNumeroOperacion').value.trim();
+    }
+
+    fetch(`/reservas/${checkinReservaId}/checkin`, {
+        method: 'POST',
+        headers: {
+            'Content-Type':  'application/json',
+            'Accept':        'application/json',
+            'X-CSRF-TOKEN':  document.querySelector('meta[name="csrf-token"]').content,
+        },
+        body: JSON.stringify(body),
+    })
+        .then(res => res.json())
+        .then(resp => {
+            if (resp.error) {
+                mostrarAlerta('error', resp.error);
+                btn.disabled  = false;
+                btn.innerHTML = 'Confirmar Check-in';
+                return;
+            }
+            btn.disabled  = false;
+            btn.innerHTML = 'Confirmar Check-in';
+            Modal.getInstance(document.getElementById('modalCheckin')).hide();
+            window.buscarReservas(paginaActual);
+            mostrarAlerta('exito', 'Check-in realizado correctamente.');
+        })
+        .catch(err => {
+            console.error('Error checkin:', err);
+            mostrarAlerta('error', 'Ocurrió un error al realizar el check-in.');
+            btn.disabled  = false;
+            btn.innerHTML = 'Confirmar Check-in';
+        });
+};
+
+function checkinMetodoEsEfectivo() {
+    const select = document.getElementById('checkinMetodoId');
+    const opcion = select.options[select.selectedIndex];
+    return (opcion?.dataset.nombre ?? '') === 'efectivo';
+}
+
+window.onCambioMetodoCheckin = function () {
+    const grupo = document.getElementById('checkinGrupoNumeroOperacion');
+    if (!checkinMetodoEsEfectivo()) {
+        grupo.style.display = 'block';
+    } else {
+        grupo.style.display = 'none';
+        document.getElementById('checkinNumeroOperacion').value = '';
+        document.getElementById('checkinErrorNumeroOperacion').style.display = 'none';
+    }
+};
+
+window.validarNumeroOperacionCheckin = function () {
+    const valor = document.getElementById('checkinNumeroOperacion').value.trim();
+    document.getElementById('checkinErrorNumeroOperacion').style.display = valor ? 'none' : 'block';
+};
+
+
+// ── 17. ACCIÓN: AGREGAR EXTENSIÓN (MODAL EXTENSIÓN) ──
+let extReservaId       = null;
+let extTipoEstadia     = null;
+let extMontoCalculado  = 0;
+let extHabsDisponibles = [];
+let extHabsSeleccionadas = [];
+let extHabitacionesData  = [];
+
+// Abre el modal en Fase A y consulta el tipo de estadía de la reserva
 window.extensionReserva = function (id) {
     cerrarTodosLosMenus();
     extReservaId = id;
- 
-    // Reset completo
-    document.getElementById('extReservaId').textContent      = `#${id}`;
-    document.getElementById('extCargando').style.display     = 'none';
-    document.getElementById('extFaseA').style.display        = 'block';
-    document.getElementById('extFaseB').style.display        = 'none';
-    document.getElementById('extFaseC').style.display        = 'none';
-    document.getElementById('extBtnConfirmar').style.display = 'none';
-    document.getElementById('extCantidad').value             = '1';
-    document.getElementById('extMetodoId').value             = '';
-    document.getElementById('extErrorMetodo').style.display  = 'none';
-    document.getElementById('extAvisoConflicto').style.display = 'none';
-    document.getElementById('extHabitaciones').innerHTML     = '';
+
+    document.getElementById('extReservaId').textContent        = `#${id}`;
+    document.getElementById('extCargando').style.display       = 'none';
+    document.getElementById('extFaseA').style.display          = 'block';
+    document.getElementById('extFaseB').style.display          = 'none';
+    document.getElementById('extFaseC').style.display          = 'none';
+    document.getElementById('extBtnConfirmar').style.display   = 'none';
+    document.getElementById('extCantidad').value                = '1';
+    document.getElementById('extMetodoId').value                = '';
+    document.getElementById('extErrorMetodo').style.display     = 'none';
+    document.getElementById('extAvisoConflicto').style.display  = 'none';
+    document.getElementById('extHabitaciones').innerHTML        = '';
+    document.getElementById('extNumeroOperacion').value               = '';
+    document.getElementById('extGrupoNumeroOperacion').style.display  = 'none';
+    document.getElementById('extErrorNumeroOperacion').style.display  = 'none';
     extMontoCalculado  = 0;
     extHabsDisponibles = [];
- 
-    // Obtener tipo de estadía desde el dataset que ya tenemos en window
-    // Lo detectamos en la primera verificación (respuesta del servidor)
-    extTipoEstadia = null;
- 
+    extTipoEstadia     = null;
+
     const modal = new Modal(document.getElementById('modalExtension'));
     modal.show();
- 
-    // Ajustar label según tipo — lo hacemos tras abrir con un fetch ligero
-    // al mismo endpoint con cantidad=1 para saber el tipo
+
     fetch(`/reservas/${id}/extension-info?cantidad=1`, {
         headers: {
             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
@@ -2398,40 +2980,69 @@ window.extensionReserva = function (id) {
         .then(resp => {
             if (resp.error) {
                 document.getElementById('extFaseA').innerHTML =
-                    `<div class="aviso-franja franja-horas"><i class="bi bi-exclamation-circle"></i> ${resp.error}</div>`;
+                    `<div class="aviso-franja franja-info"><i class="bi bi-exclamation-circle"></i> ${resp.error}</div>`;
                 return;
             }
             extTipoEstadia = resp.tipo_estadia;
             const unidad   = extTipoEstadia === 'horas' ? 'horas' : 'noches';
             document.getElementById('extTipoLabel').textContent =
-                `Estadía por ${unidad} — salida actual: ${resp.salida_actual}`;
+                `Estadía por ${unidad}`;
             document.getElementById('extCantidadLabel').textContent =
                 `Cantidad de ${unidad} a extender`;
         })
         .catch(() => {});
 };
- 
+
 window.extLimpiarResultado = function () {
     document.getElementById('extFaseB').style.display        = 'none';
     document.getElementById('extFaseC').style.display        = 'none';
     document.getElementById('extBtnConfirmar').style.display = 'none';
-    extMontoCalculado  = 0;
-    extHabsDisponibles = [];
+    extMontoCalculado    = 0;
+    extHabsDisponibles   = [];
+    extHabsSeleccionadas = [];
+    extHabitacionesData  = [];
 };
- 
+
+function extMetodoEsEfectivo() {
+    const select = document.getElementById('extMetodoId');
+    const opcion = select.options[select.selectedIndex];
+    return (opcion?.dataset.nombre ?? '') === 'efectivo';
+}
+
+window.onCambioMetodoExtension = function () {
+    const grupo = document.getElementById('extGrupoNumeroOperacion');
+    const select = document.getElementById('extMetodoId');
+
+    if (select.value !== '' && !extMetodoEsEfectivo()) {
+        grupo.style.display = 'block';
+    } else {
+        grupo.style.display = 'none';
+        document.getElementById('extNumeroOperacion').value = '';
+        document.getElementById('extErrorNumeroOperacion').style.display = 'none';
+    }
+};
+
+window.validarNumeroOperacionExtension = function () {
+    const valor = document.getElementById('extNumeroOperacion').value.trim();
+    document.getElementById('extErrorNumeroOperacion').style.display = valor ? 'none' : 'block';
+};
+
+// Verifica disponibilidad y costo de la extensión (Fase A → B/C)
 window.extVerificar = function () {
     const cantidad = parseInt(document.getElementById('extCantidad').value) || 0;
- 
+    const errorCantidadEl = document.getElementById('extErrorCantidad');
+
     if (cantidad < 1) {
-        alert('La cantidad mínima es 1.');
+        errorCantidadEl.style.display = 'block';
         return;
     }
- 
+    errorCantidadEl.style.display = 'none';
+
     document.getElementById('extCargando').style.display     = 'block';
     document.getElementById('extFaseB').style.display        = 'none';
     document.getElementById('extFaseC').style.display        = 'none';
     document.getElementById('extBtnConfirmar').style.display = 'none';
- 
+
     fetch(`/reservas/${extReservaId}/extension-info?cantidad=${cantidad}`, {
         headers: {
             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
@@ -2441,103 +3052,159 @@ window.extVerificar = function () {
         .then(res => res.json())
         .then(resp => {
             document.getElementById('extCargando').style.display = 'none';
- 
+
             if (resp.error) {
-                alert(resp.error);
+                mostrarAlerta('error', resp.error);
                 return;
             }
- 
-            extTipoEstadia    = resp.tipo_estadia;
-            extMontoCalculado = resp.monto_total;
-            extHabsDisponibles = resp.habitaciones
-                .filter(h => h.disponible)
-                .map(h => h.numero);
- 
-            // Info salida
+
+            extTipoEstadia       = resp.tipo_estadia;
+            extHabitacionesData  = resp.habitaciones;
+            extHabsDisponibles   = resp.habitaciones.filter(h => h.disponible).map(h => h.numero);
+            extHabsSeleccionadas = [...extHabsDisponibles];
+
+            document.getElementById('extAccionesMasivas').style.display = extHabitacionesData.length > 1 ? 'flex' : 'none';
+
             document.getElementById('extInfoSalida').innerHTML =
                 `<i class="bi bi-arrow-right-circle-fill"></i>
-                 Nueva salida estimada: <strong>${resp.nueva_salida}</strong>
-                 <span style="opacity:0.7; margin-left:8px;">(+${resp.unidad_label})</span>`;
- 
-            // Renderizar habitaciones
-            const habsEl = document.getElementById('extHabitaciones');
-            habsEl.innerHTML = '';
- 
-            resp.habitaciones.forEach(h => {
-                const div = document.createElement('div');
-                div.className = 'ver-fila';
- 
-                if (h.disponible) {
-                    div.innerHTML = `
-                        <span class="ver-fila-label">N° ${h.numero} <span class="ver-tag">${h.tipo}</span></span>
-                        <span class="ver-fila-valor" style="display:flex; align-items:center; gap:8px;">
-                            <span style="color:#198754; font-size:0.82rem;">
-                                <i class="bi bi-check-circle-fill"></i> Disponible
-                            </span>
-                            <strong>S/ ${h.monto.toFixed(2)}</strong>
-                        </span>`;
-                } else {
-                    const msgConflicto = h.estado_conflicto === 'activa'
-                        ? `Ocupada por reserva #${h.reserva_id} (activa)`
-                        : `Reservada por reserva #${h.reserva_id} (pendiente)`;
-                    div.innerHTML = `
-                        <span class="ver-fila-label">N° ${h.numero} <span class="ver-tag">${h.tipo}</span></span>
-                        <span class="ver-fila-valor" style="color:#dc3545; font-size:0.82rem;">
-                            <i class="bi bi-x-circle-fill"></i> ${msgConflicto}
-                        </span>`;
-                }
- 
-                habsEl.appendChild(div);
-            });
- 
-            // Aviso conflictos
+                 Extensión solicitada: <strong>+${resp.unidad_label}</strong>`;
+
+            extRenderizarHabitaciones();
+
             const hayConflictos = resp.habitaciones.some(h => !h.disponible);
             const avisoEl = document.getElementById('extAvisoConflicto');
             if (hayConflictos && resp.hay_disponibles) {
-                avisoEl.innerHTML = '<i class="bi bi-info-circle"></i> Algunas habitaciones tienen conflicto y no serán extendidas. Solo se extenderán las disponibles.';
-                avisoEl.style.display = 'block';
+                pintarAviso(avisoEl, 'advertencia',
+                    'Algunas habitaciones tienen conflicto y no pueden extenderse. Elija cuáles de las disponibles desea extender.');
             } else if (hayConflictos && !resp.hay_disponibles) {
-                avisoEl.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i> Todas las habitaciones tienen conflicto. No es posible extender esta reserva con esta cantidad.';
-                avisoEl.style.display = 'block';
+                pintarAviso(avisoEl, 'peligro',
+                    'Todas las habitaciones tienen conflicto. No es posible extender esta reserva con esta cantidad.');
             } else {
-                avisoEl.style.display = 'none';
+                ocultarAviso(avisoEl);
             }
- 
+
             document.getElementById('extFaseB').style.display = 'block';
- 
-            // Fase C y botón confirmar solo si hay disponibles
-            if (resp.hay_disponibles) {
-                document.getElementById('extMontoTotal').textContent = `S/ ${resp.monto_total.toFixed(2)}`;
-                document.getElementById('extFaseC').style.display        = 'block';
-                document.getElementById('extBtnConfirmar').style.display = 'inline-flex';
-            }
+            extActualizarMontoYBoton();
         })
         .catch(err => {
             console.error('Error verificando extensión:', err);
             document.getElementById('extCargando').style.display = 'none';
-            alert('Ocurrió un error al verificar la disponibilidad.');
+            mostrarAlerta('error', 'Ocurrió un error al verificar la disponibilidad.');
         });
 };
- 
+
+// Renderiza las habitaciones con checkbox para las disponibles
+function extRenderizarHabitaciones() {
+    const habsEl = document.getElementById('extHabitaciones');
+    habsEl.innerHTML = '';
+
+    extHabitacionesData.forEach(h => {
+        const div = document.createElement('div');
+        div.className = 'ver-fila';
+
+        if (h.disponible) {
+            const marcada = extHabsSeleccionadas.includes(h.numero);
+            div.innerHTML = `
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer; flex:1;">
+                    <input type="checkbox" ${marcada ? 'checked' : ''}
+                        onchange="window.extToggleHabitacion(${h.numero})">
+                    <span class="ver-fila-label">N° ${h.numero} <span class="ver-tag">${h.tipo}</span></span>
+                </label>
+                <span class="ver-fila-valor ext-fila-disponible">
+                    <span class="ext-texto-exito">
+                        <i class="bi bi-check-circle-fill"></i> ${h.salida_actual} → ${h.nueva_salida}
+                    </span>
+                    <strong>S/ ${h.monto.toFixed(2)}</strong>
+                </span>`;
+        } else {
+            const msgConflicto = h.estado_conflicto === 'activa'
+                ? `Ocupada por reserva #${h.reserva_id} (activa)`
+                : `Reservada por reserva #${h.reserva_id} (pendiente)`;
+            div.innerHTML = `
+                <span class="ver-fila-label">N° ${h.numero} <span class="ver-tag">${h.tipo}</span></span>
+                <span class="ver-fila-valor ext-texto-conflicto">
+                    <i class="bi bi-x-circle-fill"></i> ${msgConflicto}
+                </span>`;
+        }
+
+        habsEl.appendChild(div);
+    });
+}
+
+window.extToggleHabitacion = function (numero) {
+    const idx = extHabsSeleccionadas.indexOf(numero);
+    if (idx === -1) {
+        extHabsSeleccionadas.push(numero);
+    } else {
+        extHabsSeleccionadas.splice(idx, 1);
+    }
+    extActualizarMontoYBoton();
+};
+
+window.extSeleccionarTodas = function (marcar) {
+    extHabsSeleccionadas = marcar ? [...extHabsDisponibles] : [];
+    extRenderizarHabitaciones();
+    extActualizarMontoYBoton();
+};
+
+function extActualizarMontoYBoton() {
+    const avisoSinSeleccion = document.getElementById('extAvisoSinSeleccion');
+
+    if (extHabsSeleccionadas.length === 0) {
+        document.getElementById('extFaseC').style.display        = 'none';
+        document.getElementById('extBtnConfirmar').style.display = 'none';
+        if (avisoSinSeleccion) {
+            avisoSinSeleccion.style.display = extHabsDisponibles.length > 0 ? 'block' : 'none';
+        }
+        return;
+    }
+    if (avisoSinSeleccion) avisoSinSeleccion.style.display = 'none';
+
+    const seleccionadas = extHabitacionesData.filter(h => extHabsSeleccionadas.includes(h.numero));
+    extMontoCalculado = Math.round(seleccionadas.reduce((sum, h) => sum + h.monto, 0) * 100) / 100;
+
+    document.getElementById('extMontoTotal').textContent = `S/ ${extMontoCalculado.toFixed(2)}`;
+    document.getElementById('extFaseC').style.display        = 'block';
+    document.getElementById('extBtnConfirmar').style.display = 'inline-flex';
+}
+
+// Confirma y guarda la extensión (solo habitaciones disponibles)
 window.extConfirmar = function () {
     const metodo   = document.getElementById('extMetodoId').value;
     const cantidad = parseInt(document.getElementById('extCantidad').value) || 0;
- 
+
     if (!metodo) {
         document.getElementById('extErrorMetodo').style.display = 'block';
         return;
     }
     document.getElementById('extErrorMetodo').style.display = 'none';
- 
-    if (extHabsDisponibles.length === 0) {
-        alert('No hay habitaciones disponibles para extender.');
+
+    if (extHabsSeleccionadas.length === 0) {
         return;
     }
- 
+
+    if (!extMetodoEsEfectivo()) {
+        const numOp = document.getElementById('extNumeroOperacion').value.trim();
+        if (!numOp) {
+            document.getElementById('extErrorNumeroOperacion').style.display = 'block';
+            return;
+        }
+    }
+
     const btn = document.getElementById('extBtnConfirmar');
     btn.disabled  = true;
     btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Guardando...';
- 
+
+    const body = {
+        cantidad:     cantidad,
+        metodo_id:    metodo,
+        habitaciones: extHabsSeleccionadas,
+        monto:        extMontoCalculado,
+    };
+    if (!extMetodoEsEfectivo()) {
+        body.numero_operacion = document.getElementById('extNumeroOperacion').value.trim();
+    }
+
     fetch(`/reservas/${extReservaId}/extension`, {
         method: 'POST',
         headers: {
@@ -2545,54 +3212,64 @@ window.extConfirmar = function () {
             'Accept':        'application/json',
             'X-CSRF-TOKEN':  document.querySelector('meta[name="csrf-token"]').content,
         },
-        body: JSON.stringify({
-            cantidad:      cantidad,
-            metodo_id:     metodo,
-            habitaciones:  extHabsDisponibles,
-            monto:         extMontoCalculado,
-        }),
+        body: JSON.stringify(body),
     })
         .then(res => res.json())
         .then(resp => {
             btn.disabled  = false;
-            btn.innerHTML = '<i class="bi bi-check-lg"></i> Confirmar Extensión';
- 
+            btn.innerHTML = 'Confirmar Extensión';
+
             if (resp.error) {
-                alert(resp.error);
+                mostrarAlerta('error', resp.error);
                 return;
             }
- 
+
             Modal.getInstance(document.getElementById('modalExtension')).hide();
             window.buscarReservas(paginaActual);
             mostrarAlerta('exito', 'Extensión registrada correctamente.');
         })
         .catch(err => {
             console.error('Error confirmando extensión:', err);
-            alert('Ocurrió un error al confirmar la extensión.');
+            mostrarAlerta('error', 'Ocurrió un error al confirmar la extensión.');
             btn.disabled  = false;
-            btn.innerHTML = '<i class="bi bi-check-lg"></i> Confirmar Extensión';
+            btn.innerHTML = 'Confirmar Extensión';
         });
 };
 
-// ─── FINALIZAR ────────────────────────────────────────────────
-let finReservaId     = null;
-let finEstadosHabs   = {};   // { numero: 'limpieza' | 'mantenimiento' | null }
- 
+
+// ── 18. ACCIÓN: FINALIZAR / CHECK-OUT (MODAL FINALIZAR) ──
+let finReservaId        = null;
+let finEstadosHabs      = {};
+let finTipoComprobante  = null;
+let finHuespedPrincipal = null;
+
+// Abre el modal y carga las habitaciones de la reserva
 window.finalizarReserva = function (id) {
     cerrarTodosLosMenus();
-    finReservaId   = id;
-    finEstadosHabs = {};
- 
-    document.getElementById('finReservaId').textContent      = `#${id}`;
-    document.getElementById('finCargando').style.display     = 'block';
-    document.getElementById('finContenido').style.display    = 'none';
-    document.getElementById('finBtnConfirmar').style.display = 'none';
+    finReservaId        = id;
+    finEstadosHabs      = {};
+    finTipoComprobante  = null;
+    finHuespedPrincipal = null;
+
+    document.getElementById('finReservaId').textContent         = `#${id}`;
+    document.getElementById('finCargando').style.display        = 'block';
+    document.getElementById('finContenido').style.display       = 'none';
+    document.getElementById('finBtnConfirmar').style.display    = 'none';
     document.getElementById('finAvisoIncompleto').style.display = 'none';
- 
+
+    document.getElementById('finBtnBoleta').classList.remove('btn-comprobante-activo');
+    document.getElementById('finBtnFactura').classList.remove('btn-comprobante-activo');
+    document.getElementById('finInfoBoleta').style.display       = 'none';
+    document.getElementById('finGrupoFactura').style.display     = 'none';
+    document.getElementById('finRuc').value                      = '';
+    document.getElementById('finRazonSocial').value               = '';
+    document.getElementById('finErrorRuc').style.display          = 'none';
+    document.getElementById('finErrorRazonSocial').style.display  = 'none';
+    document.getElementById('finErrorComprobante').style.display  = 'none';
+
     const modal = new Modal(document.getElementById('modalFinalizar'));
     modal.show();
- 
-    // Reutilizamos show() para obtener las habitaciones de la reserva
+
     fetch(`/reservas/${id}`, {
         headers: {
             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
@@ -2606,16 +3283,17 @@ window.finalizarReserva = function (id) {
                     `<i class="bi bi-exclamation-circle"></i> ${resp.error}`;
                 return;
             }
- 
-            // Inicializar estado null para cada habitación
+
             resp.habitaciones.forEach(h => {
                 finEstadosHabs[h.numero] = null;
             });
- 
+
+            finHuespedPrincipal = resp.huespedes.find(h => h.num_doc === resp.huesped_principal) ?? null;
+
             finRenderizarHabs(resp.habitaciones);
- 
-            document.getElementById('finCargando').style.display  = 'none';
-            document.getElementById('finContenido').style.display = 'block';
+
+            document.getElementById('finCargando').style.display     = 'none';
+            document.getElementById('finContenido').style.display    = 'block';
             document.getElementById('finBtnConfirmar').style.display = 'inline-flex';
         })
         .catch(err => {
@@ -2624,22 +3302,22 @@ window.finalizarReserva = function (id) {
                 '<i class="bi bi-exclamation-circle"></i> Error al cargar la reserva.';
         });
 };
- 
+
+// Renderiza una fila por habitación con sus dos botones de destino
 function finRenderizarHabs(habitaciones) {
     const contenedor = document.getElementById('finHabitaciones');
     contenedor.innerHTML = '';
- 
+
     habitaciones.forEach(h => {
         const div = document.createElement('div');
-        div.className    = 'ver-fila';
-        div.id           = `fin-fila-${h.numero}`;
-        div.style.alignItems = 'center';
+        div.className = 'ver-fila fin-fila';
+        div.id         = `fin-fila-${h.numero}`;
         div.innerHTML = `
-            <span class="ver-fila-label" style="flex:1;">
+            <span class="ver-fila-label fin-fila-label">
                 N° ${h.numero}
                 <span class="ver-tag">${h.tipo}</span>
             </span>
-            <div style="display:flex; gap:6px;">
+            <div class="fin-fila-botones">
                 <button type="button"
                     id="fin-btn-limpieza-${h.numero}"
                     class="btn-estado-hab"
@@ -2656,14 +3334,13 @@ function finRenderizarHabs(habitaciones) {
         contenedor.appendChild(div);
     });
 }
- 
+
 window.finSeleccionar = function (numero, estado) {
     finEstadosHabs[numero] = estado;
- 
-    // Actualizar visual del par de botones de esa habitación
+
     const btnLimpieza      = document.getElementById(`fin-btn-limpieza-${numero}`);
     const btnMantenimiento = document.getElementById(`fin-btn-mantenimiento-${numero}`);
- 
+
     if (estado === 'limpieza') {
         btnLimpieza.classList.add('btn-estado-activo-limpieza');
         btnMantenimiento.classList.remove('btn-estado-activo-mantenimiento');
@@ -2671,34 +3348,104 @@ window.finSeleccionar = function (numero, estado) {
         btnMantenimiento.classList.add('btn-estado-activo-mantenimiento');
         btnLimpieza.classList.remove('btn-estado-activo-limpieza');
     }
- 
-    // Ocultar aviso si se estaba mostrando
+
     document.getElementById('finAvisoIncompleto').style.display = 'none';
 };
- 
+
 window.finAplicarTodas = function (estado) {
     Object.keys(finEstadosHabs).forEach(numero => {
         window.finSeleccionar(parseInt(numero), estado);
     });
 };
- 
+
+// Selecciona el tipo de comprobante y muestra el bloque correspondiente
+window.finSeleccionarComprobante = function (tipo) {
+    finTipoComprobante = tipo;
+
+    const btnBoleta    = document.getElementById('finBtnBoleta');
+    const btnFactura   = document.getElementById('finBtnFactura');
+    const infoBoleta   = document.getElementById('finInfoBoleta');
+    const grupoFactura = document.getElementById('finGrupoFactura');
+
+    btnBoleta.classList.toggle('btn-comprobante-activo', tipo === 'boleta');
+    btnFactura.classList.toggle('btn-comprobante-activo', tipo === 'factura');
+
+    if (tipo === 'boleta') {
+        const nombre = finHuespedPrincipal?.nombre ?? '—';
+        const doc    = finHuespedPrincipal?.num_doc ?? '—';
+        infoBoleta.innerHTML = `<i class="bi bi-person-check"></i> Se emitirá a: <strong>${nombre}</strong> (${doc})`;
+        infoBoleta.style.display   = 'block';
+        grupoFactura.style.display = 'none';
+    } else {
+        infoBoleta.style.display   = 'none';
+        grupoFactura.style.display = 'block';
+    }
+
+    document.getElementById('finErrorComprobante').style.display = 'none';
+};
+
+window.finValidarRuc = function () {
+    const valor   = document.getElementById('finRuc').value.trim();
+    const errorEl = document.getElementById('finErrorRuc');
+    const valido  = /^\d{11}$/.test(valor);
+    errorEl.style.display = (valor.length > 0 && !valido) ? 'block' : 'none';
+};
+
+window.finValidarRazonSocial = function () {
+    const valor = document.getElementById('finRazonSocial').value.trim();
+    document.getElementById('finErrorRazonSocial').style.display = valor ? 'none' : 'block';
+};
+
+// Valida habitaciones + comprobante y envía el check-out
 window.finConfirmar = function () {
-    // Verificar que todas tienen estado
     const incompletas = Object.values(finEstadosHabs).some(v => v === null);
     if (incompletas) {
         document.getElementById('finAvisoIncompleto').style.display = 'block';
         return;
     }
- 
+    document.getElementById('finAvisoIncompleto').style.display = 'none';
+
+    if (!finTipoComprobante) {
+        document.getElementById('finErrorComprobante').style.display = 'block';
+        return;
+    }
+    document.getElementById('finErrorComprobante').style.display = 'none';
+
+    let ruc = null;
+    let razonSocial = null;
+
+    if (finTipoComprobante === 'factura') {
+        ruc         = document.getElementById('finRuc').value.trim();
+        razonSocial = document.getElementById('finRazonSocial').value.trim();
+
+        if (!/^\d{11}$/.test(ruc)) {
+            document.getElementById('finErrorRuc').style.display = 'block';
+            return;
+        }
+        if (!razonSocial) {
+            document.getElementById('finErrorRazonSocial').style.display = 'block';
+            return;
+        }
+    }
+
     const habitaciones = Object.entries(finEstadosHabs).map(([numero, estado_destino]) => ({
         numero:         parseInt(numero),
         estado_destino,
     }));
- 
+
     const btn = document.getElementById('finBtnConfirmar');
     btn.disabled  = true;
     btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Guardando...';
- 
+
+    const body = {
+        habitaciones,
+        tipo_comprobante: finTipoComprobante,
+    };
+    if (finTipoComprobante === 'factura') {
+        body.ruc          = ruc;
+        body.razon_social = razonSocial;
+    }
+
     fetch(`/reservas/${finReservaId}/finalizar`, {
         method: 'PATCH',
         headers: {
@@ -2706,47 +3453,209 @@ window.finConfirmar = function () {
             'Accept':        'application/json',
             'X-CSRF-TOKEN':  document.querySelector('meta[name="csrf-token"]').content,
         },
-        body: JSON.stringify({ habitaciones }),
+        body: JSON.stringify(body),
     })
         .then(res => res.json())
         .then(resp => {
             btn.disabled  = false;
-            btn.innerHTML = '<i class="bi bi-check-circle"></i> Confirmar Check-out';
- 
+            btn.innerHTML = 'Confirmar Check-out';
+
             if (resp.error) {
-                alert(resp.error);
+                mostrarAlerta('error', resp.error);
                 return;
             }
- 
+
             Modal.getInstance(document.getElementById('modalFinalizar')).hide();
             window.buscarReservas(paginaActual);
             mostrarAlerta('exito', 'Reserva finalizada correctamente.');
+
+            if (resp.comprobante_url) {
+                window.open(resp.comprobante_url, '_blank');
+            }
         })
         .catch(err => {
             console.error('Error finalizando reserva:', err);
-            alert('Ocurrió un error al finalizar la reserva.');
+            mostrarAlerta('error', 'Ocurrió un error al finalizar la reserva.');
             btn.disabled  = false;
-            btn.innerHTML = '<i class="bi bi-check-circle"></i> Confirmar Check-out';
+            btn.innerHTML = 'Confirmar Check-out';
         });
 };
 
-// ─── CANCELAR ────────────────────────────────────────────────
-let cancelarReservaId = null;
 
+// ── 19. ACCIÓN: CANCELAR (MODAL CANCELAR) ──
+let cancelarReservaId    = null;
+let cancelarMontoPagado  = 0;
+
+// Abre el modal y carga el saldo pagado de la reserva
 window.cancelarReserva = function (id) {
     cerrarTodosLosMenus();
     cancelarReservaId = id;
 
-    document.getElementById('cancelarReservaId').textContent = `#${id}`;
+    document.getElementById('cancelarReservaId').textContent      = `#${id}`;
+    document.getElementById('cancelarCargando').style.display     = 'block';
+    document.getElementById('cancelarContenido').style.display    = 'none';
+    document.getElementById('cancelarBtnConfirmar').style.display = 'none';
+
+    document.getElementById('cancelarMontoDevuelto').value              = '';
+    document.getElementById('cancelarErrorMonto').style.display         = 'none';
+    document.getElementById('cancelarRetenidoInfo').style.display       = 'none';
+    document.getElementById('cancelarMetodoId').value                   = '';
+    document.getElementById('cancelarMetodoGrupo').style.display        = 'none';
+    document.getElementById('cancelarErrorMetodo').style.display        = 'none';
+    document.getElementById('cancelarNumeroOperacion').value            = '';
+    document.getElementById('cancelarGrupoNumeroOperacion').style.display = 'none';
+    document.getElementById('cancelarErrorNumeroOperacion').style.display = 'none';
 
     const modal = new Modal(document.getElementById('modalCancelar'));
     modal.show();
+
+    fetch(`/reservas/${id}/cancelar-info`, {
+        headers: {
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+            'Accept': 'application/json',
+        },
+    })
+        .then(res => res.json())
+        .then(resp => {
+            if (resp.error) {
+                document.getElementById('cancelarCargando').innerHTML =
+                    `<i class="bi bi-exclamation-circle"></i> ${resp.error}`;
+                return;
+            }
+
+            cancelarMontoPagado = resp.monto_pagado;
+
+            document.getElementById('cancelarMontoTotal').textContent  = `S/ ${resp.monto_total.toFixed(2)}`;
+            document.getElementById('cancelarMontoPagado').textContent = `S/ ${resp.monto_pagado.toFixed(2)}`;
+            document.getElementById('cancelarMaximoLabel').textContent = `(máximo S/ ${resp.monto_pagado.toFixed(2)})`;
+
+            document.getElementById('cancelarMontoDevuelto').max   = cancelarMontoPagado;
+            document.getElementById('cancelarMontoDevuelto').value = cancelarMontoPagado.toFixed(2);
+
+            window.cancelActualizarInfoRetenido();
+
+            document.getElementById('cancelarCargando').style.display     = 'none';
+            document.getElementById('cancelarContenido').style.display    = 'block';
+            document.getElementById('cancelarBtnConfirmar').style.display = 'inline-flex';
+        })
+        .catch(err => {
+            console.error('Error cargando cancelar-info:', err);
+            document.getElementById('cancelarCargando').innerHTML =
+                '<i class="bi bi-exclamation-circle"></i> Error al cargar la información.';
+        });
 };
 
+window.cancelValidarMonto = function () {
+    const monto   = parseFloat(document.getElementById('cancelarMontoDevuelto').value) || 0;
+    const errorEl = document.getElementById('cancelarErrorMonto');
+
+    if (monto < 0) {
+        errorEl.textContent   = 'El monto no puede ser negativo.';
+        errorEl.style.display = 'block';
+    } else if (monto > cancelarMontoPagado) {
+        errorEl.textContent   = `No puede superar lo pagado (S/ ${cancelarMontoPagado.toFixed(2)})`;
+        errorEl.style.display = 'block';
+    } else {
+        errorEl.style.display = 'none';
+    }
+
+    window.cancelActualizarInfoRetenido();
+};
+
+// Muestra cuánto se devuelve y cuánto queda retenido
+window.cancelActualizarInfoRetenido = function () {
+    const devuelto  = parseFloat(document.getElementById('cancelarMontoDevuelto').value) || 0;
+    const retenido  = Math.round((cancelarMontoPagado - devuelto) * 100) / 100;
+    const infoEl    = document.getElementById('cancelarRetenidoInfo');
+    const metodoGrp = document.getElementById('cancelarMetodoGrupo');
+
+    if (devuelto <= 0) {
+        pintarAviso(infoEl, 'advertencia', `No se devolverá nada. Se retiene el total pagado: S/ ${cancelarMontoPagado.toFixed(2)}.`);
+        metodoGrp.style.display = 'none';
+    } else if (retenido <= 0.009) {
+        pintarAviso(infoEl, 'exito', 'Se devolverá todo lo pagado. Nada queda retenido.');
+        metodoGrp.style.display = 'block';
+    } else {
+        pintarAviso(infoEl, 'info', `Se devuelve S/ ${devuelto.toFixed(2)} y se retiene S/ ${retenido.toFixed(2)}.`);
+        metodoGrp.style.display = 'block';
+    }
+
+    const grupoNumOp = document.getElementById('cancelarGrupoNumeroOperacion');
+    const metodoSeleccionado = document.getElementById('cancelarMetodoId').value;
+
+    if (devuelto <= 0 || !metodoSeleccionado) {
+        grupoNumOp.style.display = 'none';
+    } else if (!cancelMetodoEsEfectivo()) {
+        grupoNumOp.style.display = 'block';
+    } else {
+        grupoNumOp.style.display = 'none';
+    }
+};
+
+function cancelMetodoEsEfectivo() {
+    const select = document.getElementById('cancelarMetodoId');
+    const opcion = select.options[select.selectedIndex];
+    return (opcion?.dataset.nombre ?? '') === 'efectivo';
+}
+
+window.onCambioMetodoCancelar = function () {
+    const grupo = document.getElementById('cancelarGrupoNumeroOperacion');
+    const select = document.getElementById('cancelarMetodoId');
+
+    if (select.value !== '' && !cancelMetodoEsEfectivo()) {
+        grupo.style.display = 'block';
+    } else {
+        grupo.style.display = 'none';
+        document.getElementById('cancelarNumeroOperacion').value = '';
+        document.getElementById('cancelarErrorNumeroOperacion').style.display = 'none';
+    }
+};
+
+window.validarNumeroOperacionCancelar = function () {
+    const valor = document.getElementById('cancelarNumeroOperacion').value.trim();
+    document.getElementById('cancelarErrorNumeroOperacion').style.display = valor ? 'none' : 'block';
+};
+
+// Confirma y procesa la cancelación (+ devolución si aplica)
 window.confirmarCancelar = function () {
+    const monto = parseFloat(document.getElementById('cancelarMontoDevuelto').value) || 0;
+
+    if (monto < 0 || monto > cancelarMontoPagado + 0.009) {
+        document.getElementById('cancelarErrorMonto').style.display = 'block';
+        document.getElementById('cancelarErrorMonto').textContent   =
+            `Ingrese un monto válido (máximo S/ ${cancelarMontoPagado.toFixed(2)})`;
+        return;
+    }
+
+    let metodo = null;
+    if (monto > 0) {
+        metodo = document.getElementById('cancelarMetodoId').value;
+         if (!metodo) {
+            document.getElementById('cancelarErrorMetodo').style.display = 'block';
+            return;
+        }
+        document.getElementById('cancelarErrorMetodo').style.display = 'none';
+
+        if (!cancelMetodoEsEfectivo()) {
+            const numOp = document.getElementById('cancelarNumeroOperacion').value.trim();
+            if (!numOp) {
+                document.getElementById('cancelarErrorNumeroOperacion').style.display = 'block';
+                return;
+            }
+        }
+    }
+
     const btn = document.getElementById('cancelarBtnConfirmar');
     btn.disabled  = true;
     btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Cancelando...';
+
+    const body = { monto_devuelto: monto };
+    if (monto > 0) {
+        body.metodo_id = metodo;
+        if (!cancelMetodoEsEfectivo()) {
+            body.numero_operacion = document.getElementById('cancelarNumeroOperacion').value.trim();
+        }
+    }
 
     fetch(`/reservas/${cancelarReservaId}/cancelar`, {
         method: 'PATCH',
@@ -2755,6 +3664,7 @@ window.confirmarCancelar = function () {
             'Accept':        'application/json',
             'X-CSRF-TOKEN':  document.querySelector('meta[name="csrf-token"]').content,
         },
+        body: JSON.stringify(body),
     })
         .then(res => res.json())
         .then(resp => {
@@ -2762,7 +3672,7 @@ window.confirmarCancelar = function () {
             btn.innerHTML = '<i class="bi bi-x-circle"></i> Sí, cancelar reserva';
 
             if (resp.error) {
-                alert(resp.error);
+                mostrarAlerta('error', resp.error);
                 return;
             }
 
@@ -2772,66 +3682,75 @@ window.confirmarCancelar = function () {
         })
         .catch(err => {
             console.error('Error cancelando reserva:', err);
-            alert('Ocurrió un error al cancelar la reserva.');
+            mostrarAlerta('error', 'Ocurrió un error al cancelar la reserva.');
             btn.disabled  = false;
             btn.innerHTML = '<i class="bi bi-x-circle"></i> Sí, cancelar reserva';
         });
 };
 
-// ─── MODALES ───
+
+// ── 20. INICIALIZACIÓN — listeners DOMContentLoaded ──
 document.addEventListener('DOMContentLoaded', () => {
 
-    // Modal crear — limpiar al cerrar
+    // Modal Crear — limpiar todo el wizard al cerrar
     document.getElementById('modalCrear').addEventListener('hidden.bs.modal', function () {
         document.getElementById('formCrear').reset();
-        franjaDetectada           = '';
+
+        franjaDetectada          = '';
+        ocultarAvisoFranja();
+
         habitacionesCargadasPara = '';
         pasoActual                = 1;
-        habitacionesSeleccionadas = [];
-        habitacionesData          = {};
-        ocultarAvisoFranja();
-        document.getElementById('paso1').style.display        = 'block';
-        document.getElementById('paso2').style.display        = 'none';
-        document.getElementById('paso2Mapa').style.display    = 'none';
-        document.getElementById('paso2Resumen').style.display = 'none';
+        document.getElementById('paso1').style.display = 'block';
+        document.getElementById('paso2').style.display = 'none';
+        document.getElementById('paso3').style.display = 'none';
+        document.getElementById('paso4').style.display = 'none';
         document.getElementById('indicador1').classList.add('paso-activo');
         document.getElementById('indicador2').classList.remove('paso-activo');
         document.getElementById('indicador3').classList.remove('paso-activo');
         document.getElementById('indicador4').classList.remove('paso-activo');
-        huespedесSeleccionados = [];
-        document.getElementById('paso3TipoDoc').value    = '';
-        document.getElementById('paso3NumDoc').value     = '';
-        document.getElementById('paso3Nombre').value     = '';
-        document.getElementById('paso3ListaResultados').innerHTML = '';
-        document.getElementById('paso3Resultados').style.display  = 'none';
-        document.getElementById('paso3Vacio').style.display       = 'none';
-        document.getElementById('paso3Seleccionados').style.display = 'none';
-        document.getElementById('paso3').style.display   = 'none';
-        document.getElementById('indicador3').classList.remove('paso-activo');
-        document.getElementById('btnAnterior').style.display  = 'none';
+        document.getElementById('btnAnterior').style.display   = 'none';
+        document.getElementById('btnSiguiente').style.display  = 'inline-flex';
+        document.getElementById('btnConfirmar').style.display  = 'none';
+
+        habitacionesSeleccionadas = [];
+        habitacionesData          = {};
+        document.getElementById('paso2Mapa').style.display    = 'none';
+        document.getElementById('paso2Resumen').style.display = 'none';
+
+        huespedesSeleccionados = [];
+        maxHuespedesPermitido  = 0;
         window.limpiarBuscadorHuesped();
+        document.getElementById('paso3Seleccionados').style.display = 'none';
+        document.getElementById('paso3AvisoLimite').style.display   = 'none';
+        document.getElementById('paso3ContadorBadge').textContent   = '';
+        document.getElementById('paso3ContadorBadge').classList.remove('badge-contador-limite');
+
         paso4MontoTotal  = 0;
         paso4MontoMinimo = 0;
         paso4EsInmediata = false;
-        document.getElementById('paso4MontoPago').value        = '';
-        document.getElementById('paso4MetodoId').value         = '';
-        document.getElementById('paso4FilasDesglose').innerHTML = '';
+        document.getElementById('paso4MontoPago').value              = '';
+        document.getElementById('paso4MetodoId').value               = '';
+        document.getElementById('paso4FilasDesglose').innerHTML      = '';
         document.getElementById('paso4AvisoOcupacion').style.display = 'none';
         document.getElementById('paso4ErrorMonto').style.display     = 'none';
-        document.getElementById('paso4').style.display               = 'none';
-        document.getElementById('btnConfirmar').style.display        = 'none';
-        document.getElementById('btnSiguiente').style.display        = 'inline-flex';
-        document.getElementById('indicador4').classList.remove('paso-activo');
+        document.getElementById('paso4NumeroOperacion').value        = '';
+        document.getElementById('paso4GrupoNumeroOperacion').style.display = 'none';
+        document.getElementById('paso4ErrorNumeroOperacion').style.display = 'none';
+
+        // El backdrop de Bootstrap queda huérfano al resetear manualmente; se limpia aquí
+        document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+        document.body.classList.remove('modal-open');
+        document.body.style.removeProperty('overflow');
+        document.body.style.removeProperty('padding-right');
     });
 
-    // Modal crear — setear min fecha entrada al abrir
     document.getElementById('modalCrear').addEventListener('show.bs.modal', function () {
         const ahora = new Date();
         ahora.setSeconds(0, 0);
         document.getElementById('fechaEntrada').min = toLocalDateTimeString(ahora);
     });
 
-    // Salida blur — ajustar minutos
     document.getElementById('fechaSalida').addEventListener('blur', function () {
         const fechaEntradaInput = document.getElementById('fechaEntrada');
         const tipo              = tipoEstadiaNombre();
@@ -2852,13 +3771,68 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Paso 3 — buscar con Enter
     ['paso3NumDoc', 'paso3Nombre'].forEach(id => {
         document.getElementById(id).addEventListener('keydown', e => {
             if (e.key === 'Enter') { e.preventDefault(); window.buscarHuesped(); }
         });
     });
 
+    // Modal Pago: sin listener de cierre — pagoReserva() ya resetea todo al abrir
+
+    // Modal Editar Fechas/Tipo — limpiar estado al cerrar
+    document.getElementById('modalEditarFechas').addEventListener('hidden.bs.modal', function () {
+        efReservaId      = null;
+        efHabitaciones   = [];
+        efMontoPagado    = 0;
+        efRecargoPagado  = 0;
+        efFranjaActual   = '';
+        efNuevoTotalCalc = 0;
+        efCreditoTotal = 0;
+        efConflictoActual = false;
+        document.getElementById('efFechaEntrada').value        = '';
+        document.getElementById('efFechaSalida').value         = '';
+        document.getElementById('efObservacion').value         = '';
+        document.getElementById('efAvisoFranja').style.display = 'none';
+        document.getElementById('efAvisoConflicto').style.display = 'none';
+        document.getElementById('efResumen').style.display     = 'none';
+        document.getElementById('efPagoGrupo').style.display   = 'none';
+        document.getElementById('efAvisoCaso').style.display   = 'none';
+        document.getElementById('efPagoMonto').value           = '';
+        document.getElementById('efPagoMetodo').value          = '';
+        document.getElementById('efPagoError').style.display   = 'none';
+        document.getElementById('efNumeroOperacion').value     = '';
+        document.getElementById('efGrupoNumeroOperacion').style.display = 'none';
+        document.getElementById('efErrorNumeroOperacion').style.display = 'none';
+        document.getElementById('efBtnGuardar').style.display  = 'none';
+        document.getElementById('efCargando').style.display    = 'block';
+        document.getElementById('efContenido').style.display   = 'none';
+        document.getElementById('efCreditoGrupo').style.display = 'none';
+        document.getElementById('efCreditoMontoDevuelto').value = '';
+        document.getElementById('efCreditoError').style.display = 'none';
+        document.getElementById('efCreditoMetodo').value        = '';
+        document.getElementById('efCreditoErrorMetodo').style.display = 'none';
+        document.getElementById('efCreditoNumeroOperacion').value               = '';
+        document.getElementById('efCreditoGrupoNumeroOperacion').style.display  = 'none';
+        document.getElementById('efCreditoErrorNumeroOperacion').style.display  = 'none';
+    });
+
+    // Modal Reasignar — limpiar estado al cerrar
+    document.getElementById('modalReasignar').addEventListener('hidden.bs.modal', function () {
+        raReservaId          = null;
+        raHabsData           = [];
+        raCambios            = {};
+        raActualSeleccionado = null;
+        document.getElementById('raHabsActuales').innerHTML          = '';
+        document.getElementById('raMapaContenedor').innerHTML        = '';
+        document.getElementById('raMapaAlternativas').style.display  = 'none';
+        document.getElementById('raSinAlternativas').style.display   = 'none';
+        document.getElementById('raAvisoSinCambios').style.display   = 'none';
+        document.getElementById('raBtnGuardar').style.display        = 'none';
+        document.getElementById('raCargando').style.display          = 'block';
+        document.getElementById('raContenido').style.display         = 'none';
+    });
+
+    // Modal Editar Huéspedes — limpiar estado al cerrar
     document.getElementById('modalHuespedes').addEventListener('hidden.bs.modal', function () {
         huespedModalReservaId    = null;
         huespedModalActuales     = [];
@@ -2867,37 +3841,46 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('huespedListaSeleccionados').innerHTML = '';
         document.getElementById('huespedSeleccionados').style.display  = 'none';
         document.getElementById('huespedAvisoLimite').style.display    = 'none';
+        document.getElementById('huespedContadorBadge').textContent    = '';
+        document.getElementById('huespedContadorBadge').classList.remove('badge-contador-limite');
         document.getElementById('huespedBtnGuardar').style.display     = 'none';
         document.getElementById('huespedCargando').style.display       = 'block';
         document.getElementById('huespedContenido').style.display      = 'none';
     });
- 
-    // Enter en buscador del modal
+
     ['huespedNumDoc', 'huespedNombre'].forEach(id => {
         document.getElementById(id).addEventListener('keydown', e => {
             if (e.key === 'Enter') { e.preventDefault(); window.buscarHuespedModal(); }
         });
     });
 
+    // Modal Extensión — limpiar estado al cerrar
     document.getElementById('modalExtension').addEventListener('hidden.bs.modal', function () {
         extReservaId       = null;
         extTipoEstadia     = null;
         extMontoCalculado  = 0;
         extHabsDisponibles = [];
-        document.getElementById('extCantidad').value             = '1';
-        document.getElementById('extMetodoId').value             = '';
-        document.getElementById('extErrorMetodo').style.display  = 'none';
-        document.getElementById('extCargando').style.display     = 'none';
-        document.getElementById('extFaseA').style.display        = 'block';
-        document.getElementById('extFaseB').style.display        = 'none';
-        document.getElementById('extFaseC').style.display        = 'none';
-        document.getElementById('extBtnConfirmar').style.display = 'none';
-        document.getElementById('extHabitaciones').innerHTML     = '';
-        document.getElementById('extAvisoConflicto').style.display = 'none';
-        document.getElementById('extInfoSalida').innerHTML       = '';
-        document.getElementById('extTipoLabel').textContent      = '';
+        extHabsSeleccionadas = [];
+        extHabitacionesData  = [];
+        document.getElementById('extCantidad').value                = '1';
+        document.getElementById('extMetodoId').value                = '';
+        document.getElementById('extErrorMetodo').style.display     = 'none';
+        document.getElementById('extCargando').style.display        = 'none';
+        document.getElementById('extFaseA').style.display           = 'block';
+        document.getElementById('extFaseB').style.display           = 'none';
+        document.getElementById('extFaseC').style.display           = 'none';
+        document.getElementById('extBtnConfirmar').style.display    = 'none';
+        document.getElementById('extHabitaciones').innerHTML        = '';
+        document.getElementById('extAvisoConflicto').style.display  = 'none';
+        document.getElementById('extAccionesMasivas').style.display = 'flex';
+        document.getElementById('extInfoSalida').innerHTML          = '';
+        document.getElementById('extTipoLabel').textContent         = '';
+        document.getElementById('extNumeroOperacion').value               = '';
+        document.getElementById('extGrupoNumeroOperacion').style.display  = 'none';
+        document.getElementById('extErrorNumeroOperacion').style.display  = 'none';
     });
 
+    // Modal Finalizar — limpiar estado al cerrar
     document.getElementById('modalFinalizar').addEventListener('hidden.bs.modal', function () {
         finReservaId   = null;
         finEstadosHabs = {};
@@ -2906,49 +3889,50 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('finBtnConfirmar').style.display    = 'none';
         document.getElementById('finCargando').style.display        = 'block';
         document.getElementById('finContenido').style.display       = 'none';
+        finTipoComprobante  = null;
+        finHuespedPrincipal = null;
+        document.getElementById('finBtnBoleta').classList.remove('btn-comprobante-activo');
+        document.getElementById('finBtnFactura').classList.remove('btn-comprobante-activo');
+        document.getElementById('finInfoBoleta').style.display       = 'none';
+        document.getElementById('finGrupoFactura').style.display     = 'none';
+        document.getElementById('finRuc').value                      = '';
+        document.getElementById('finRazonSocial').value               = '';
+        document.getElementById('finErrorRuc').style.display          = 'none';
+        document.getElementById('finErrorRazonSocial').style.display  = 'none';
+        document.getElementById('finErrorComprobante').style.display  = 'none';
     });
 
+    // Modal Cancelar — limpiar estado al cerrar
     document.getElementById('modalCancelar').addEventListener('hidden.bs.modal', function () {
-        cancelarReservaId = null;
+        cancelarReservaId   = null;
+        cancelarMontoPagado = 0;
+        document.getElementById('cancelarMontoDevuelto').value              = '';
+        document.getElementById('cancelarErrorMonto').style.display         = 'none';
+        document.getElementById('cancelarRetenidoInfo').style.display       = 'none';
+        document.getElementById('cancelarMetodoId').value                   = '';
+        document.getElementById('cancelarMetodoGrupo').style.display        = 'none';
+        document.getElementById('cancelarErrorMetodo').style.display        = 'none';
+        document.getElementById('cancelarNumeroOperacion').value            = '';
+        document.getElementById('cancelarGrupoNumeroOperacion').style.display = 'none';
+        document.getElementById('cancelarErrorNumeroOperacion').style.display = 'none';
+        document.getElementById('cancelarBtnConfirmar').style.display       = 'none';
+        document.getElementById('cancelarCargando').style.display           = 'block';
+        document.getElementById('cancelarContenido').style.display          = 'none';
     });
 
-    document.getElementById('modalEditarFechas').addEventListener('hidden.bs.modal', function () {
-        efReservaId      = null;
-        efHabitaciones   = [];
-        efMontoPagado    = 0;
-        efFranjaActual   = '';
-        efNuevoTotalCalc = 0;
-        document.getElementById('efFechaEntrada').value         = '';
-        document.getElementById('efFechaSalida').value          = '';
-        document.getElementById('efObservacion').value          = '';
-        document.getElementById('efAvisoFranja').style.display  = 'none';
-        document.getElementById('efResumen').style.display      = 'none';
-        document.getElementById('efPagoGrupo').style.display    = 'none';
-        document.getElementById('efAvisoCaso').style.display    = 'none';
-        document.getElementById('efPagoMonto').value            = '';
-        document.getElementById('efPagoMetodo').value           = '';
-        document.getElementById('efPagoError').style.display    = 'none';
-        document.getElementById('efBtnGuardar').style.display   = 'none';
-        document.getElementById('efCargando').style.display     = 'block';
-        document.getElementById('efContenido').style.display    = 'none';
-    });
-    
-    document.getElementById('modalReasignar').addEventListener('hidden.bs.modal', function () {
-        raReservaId          = null;
-        raHabsData           = [];
-        raCambios            = {};
-        raActualSeleccionado = null;
-        document.getElementById('raHabsActuales').innerHTML         = '';
-        document.getElementById('raMapaContenedor').innerHTML       = '';
-        document.getElementById('raMapaAlternativas').style.display = 'none';
-        document.getElementById('raSinAlternativas').style.display  = 'none';
-        document.getElementById('raAvisoSinCambios').style.display  = 'none';
-        document.getElementById('raBtnGuardar').style.display       = 'none';
-        document.getElementById('raCargando').style.display         = 'block';
-        document.getElementById('raContenido').style.display        = 'none';
+    // Modal Ver — ocultar comprobante al cerrar (se repinta en cada apertura)
+    document.getElementById('modalVer').addEventListener('hidden.bs.modal', function () {
+        document.getElementById('verSeccionComprobante').style.display = 'none';
     });
 
-    document.getElementById('filtroFechaEntrada').value = HOY_STR;
-    // ─── CARGA INICIAL ───
+    // Dropdown de acciones — cerrar al hacer click fuera o al hacer scroll
+    document.addEventListener('click', function (e) {
+        if (!e.target.closest('.acciones-dropdown') && !e.target.closest('.acciones-menu')) {
+            cerrarTodosLosMenus();
+        }
+    });
+    window.addEventListener('scroll', cerrarTodosLosMenus, true);
+
+    // Carga inicial de la tabla de reservas
     window.buscarReservas(1, true);
 });

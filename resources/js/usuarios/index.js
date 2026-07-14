@@ -1,7 +1,10 @@
-// ─── OJITO CONTRASEÑA ───
+// ─── OJITO CONTRASEÑA ───────────────────────────────────────
+//  Alterna visibilidad del campo password y cambia el ícono.
+// ────────────────────────────────────────────────────────────
 window.togglePassword = function (inputId, iconId) {
     const input = document.getElementById(inputId);
     const icon  = document.getElementById(iconId);
+
     if (input.type === 'password') {
         input.type = 'text';
         icon.classList.replace('bi-eye', 'bi-eye-slash');
@@ -11,30 +14,40 @@ window.togglePassword = function (inputId, iconId) {
     }
 };
 
-// ─── VERIFICAR CONTRASEÑA ───
+
+// ─── VERIFICAR CONTRASEÑA ───────────────────────────────────────────────────────────────────────────────────
+//  Valida longitud mínima en tiempo real (oninput).
+//  Muestra/oculta mensaje de error y activa clase .error en el contenedor .campo-password para el borde rojo.
+// ────────────────────────────────────────────────────────────────────────────────────────────────────────────
 window.verificarPassword = function (input, errorId, requerida = true) {
-    const errorEl = document.getElementById(errorId);
-    const valor   = input.value;
+    const errorEl    = document.getElementById(errorId);
+    const campoPwd   = input.closest('.campo-password');
+    const valor      = input.value;
 
     if (!valor) {
         errorEl.textContent = requerida ? 'La contraseña es obligatoria.' : '';
-        input.closest('.campo-password').style.borderBottomColor = requerida ? '#cc0000' : '';
+        campoPwd.classList.toggle('error', requerida);
         return;
     }
 
     if (valor.length < 6) {
         errorEl.textContent = 'La contraseña debe tener al menos 6 caracteres.';
-        input.closest('.campo-password').style.borderBottomColor = '#cc0000';
+        campoPwd.classList.add('error');
     } else {
         errorEl.textContent = '';
-        input.closest('.campo-password').style.borderBottomColor = '';
+        campoPwd.classList.remove('error');
     }
 };
 
-// ─── VERIFICAR EMAIL (AJAX) ───
+
+// ─── VERIFICAR EMAIL (AJAX) ─────────────────────────────────
+//  Consulta al servidor si el correo ya existe (onblur).
+//  Activa clase .error en .campo-input si hay duplicado.
+// ────────────────────────────────────────────────────────────
 window.verificarEmail = function (input, errorId, usuarioId = 0) {
-    const email   = input.value;
-    const errorEl = document.getElementById(errorId);
+    const email      = input.value;
+    const errorEl    = document.getElementById(errorId);
+    const campoInput = input.closest('.campo-input');
 
     if (!email) {
         errorEl.textContent = '';
@@ -48,38 +61,46 @@ window.verificarEmail = function (input, errorId, usuarioId = 0) {
         .then(data => {
             if (data.existe) {
                 errorEl.textContent = 'Este correo electrónico ya está registrado.';
-                input.closest('.campo-input').style.borderBottomColor = '#cc0000';
+                campoInput.classList.add('error');
             } else {
                 errorEl.textContent = '';
-                input.closest('.campo-input').style.borderBottomColor = '';
+                campoInput.classList.remove('error');
             }
         });
 };
 
-// ─── VALIDAR FORMULARIO ───
+
+// ─── VALIDAR FORMULARIO ─────────────────────────────────────
+//  Validación final antes del submit (onsubmit).
+//  Bloquea el envío si hay errores visibles o campos vacíos.
+//  Retorna true para permitir el submit, false para bloquearlo.
+// ────────────────────────────────────────────────────────────
 window.validarFormulario = function (formId, errorEmailId, errorPasswordId) {
     const errorEmail    = document.getElementById(errorEmailId);
     const errorPassword = document.getElementById(errorPasswordId);
 
+    // Bloquear si ya hay mensajes de error activos
     if (errorEmail.textContent.trim() !== '')    return false;
     if (errorPassword.textContent.trim() !== '') return false;
 
+    // Validación específica al crear (contraseña obligatoria)
     if (formId === 'formCrear') {
         const password = document.getElementById('crearPassword').value;
         if (!password) {
-            document.getElementById(errorPasswordId).textContent = 'La contraseña es obligatoria.';
+            errorPassword.textContent = 'La contraseña es obligatoria.';
             return false;
         }
         if (password.length < 6) {
-            document.getElementById(errorPasswordId).textContent = 'La contraseña debe tener al menos 6 caracteres.';
+            errorPassword.textContent = 'La contraseña debe tener al menos 6 caracteres.';
             return false;
         }
     }
 
+    // Validación específica al editar (contraseña opcional, pero si se ingresa debe cumplir)
     if (formId === 'formEditar') {
         const password = document.getElementById('editPassword').value;
         if (password && password.length < 6) {
-            document.getElementById(errorPasswordId).textContent = 'La contraseña debe tener al menos 6 caracteres.';
+            errorPassword.textContent = 'La contraseña debe tener al menos 6 caracteres.';
             return false;
         }
     }
@@ -87,19 +108,22 @@ window.validarFormulario = function (formId, errorEmailId, errorPasswordId) {
     return true;
 };
 
-// ─── MODALES ───
+
+// ─── MODALES ────────────────────────────────────────────────
+//  Listeners de Bootstrap para abrir, cerrar y limpiar modales.
+// ────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
 
-    // Modal crear — limpiar al cerrar
+    // ── Modal Crear: limpiar campos y errores al cerrar ──
     document.getElementById('modalCrear').addEventListener('hidden.bs.modal', function () {
         document.getElementById('formCrear').reset();
         document.getElementById('errorEmailCrear').textContent    = '';
         document.getElementById('errorPasswordCrear').textContent = '';
-        document.getElementById('crearEmail').closest('.campo-input').style.borderBottomColor    = '';
-        document.querySelector('#modalCrear .campo-password').style.borderBottomColor = '';
+        document.getElementById('crearEmail').closest('.campo-input').classList.remove('error');
+        document.querySelector('#modalCrear .campo-password').classList.remove('error');
     });
 
-    // Modal editar — cargar datos
+    // ── Modal Editar: cargar datos del usuario al abrir ──
     document.getElementById('modalEditar').addEventListener('show.bs.modal', function (e) {
         const btn = e.relatedTarget;
         document.getElementById('editNombre').value    = btn.dataset.name;
@@ -111,19 +135,20 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('formEditar').action   = '/usuarios/' + btn.dataset.id;
     });
 
-    // Modal editar — limpiar al cerrar
+    // ── Modal Editar: limpiar campos y errores al cerrar ──
     document.getElementById('modalEditar').addEventListener('hidden.bs.modal', function () {
         document.getElementById('formEditar').reset();
         document.getElementById('errorEmailEditar').textContent    = '';
         document.getElementById('errorPasswordEditar').textContent = '';
-        document.getElementById('editEmail').closest('.campo-input').style.borderBottomColor    = '';
-        document.querySelector('#modalEditar .campo-password').style.borderBottomColor = '';
+        document.getElementById('editEmail').closest('.campo-input').classList.remove('error');
+        document.querySelector('#modalEditar .campo-password').classList.remove('error');
     });
 
-    // Modal eliminar — cargar datos
+    // ── Modal Eliminar: cargar nombre y acción del formulario al abrir ──
     document.getElementById('modalEliminar').addEventListener('show.bs.modal', function (e) {
         const btn = e.relatedTarget;
         document.getElementById('eliminarNombre').textContent = btn.dataset.name;
         document.getElementById('formEliminar').action        = '/usuarios/' + btn.dataset.id;
     });
+
 });

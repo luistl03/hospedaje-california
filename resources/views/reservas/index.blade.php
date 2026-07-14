@@ -2,7 +2,7 @@
 
     <div class="pagina-contenedor">
 
-        <!-- ENCABEZADO -->
+        {{-- Encabezado: título y acción (nueva reserva) --}}
         <div class="pagina-encabezado">
             <h1 class="pagina-titulo">Reservas</h1>
             <button class="btn-primario" data-bs-toggle="modal" data-bs-target="#modalCrear">
@@ -10,7 +10,7 @@
             </button>
         </div>
 
-        <!-- ALERTAS -->
+        {{-- Alertas de sesión --}}
         @if(session('error'))
             <div class="login-error mb-3">
                 <i class="bi bi-exclamation-circle"></i>
@@ -25,7 +25,7 @@
             </div>
         @endif
 
-        <!-- FILTROS -->
+        {{-- Filtros de búsqueda (AJAX vía buscarReservas) --}}
         <div class="filtros-barra">
 
             <div class="filtro-grupo">
@@ -66,7 +66,7 @@
             </div>
 
             <div class="filtros-acciones">
-                <button class="btn-primario" onclick="window.buscarReservas()">
+                <button class="btn-primario" onclick="window.buscarReservas(1, false)">
                     <i class="bi bi-search"></i> Buscar
                 </button>
                 <button class="btn-secundario" onclick="window.limpiarFiltros()">
@@ -76,7 +76,7 @@
 
         </div>
 
-        <!-- TABLA RESERVAS -->
+        {{-- Tabla de reservas, tbody se llena por JS --}}
         <div class="tabla-contenedor">
             <table class="tabla" id="tablaReservas">
                 <thead>
@@ -95,12 +95,13 @@
             </table>
         </div>
 
-        <!-- PAGINACIÓN -->
+        {{-- Paginación generada por JS --}}
         <div id="paginacion" class="paginacion-contenedor"></div>
 
     </div>
 
-    <!-- MODAL CREAR RESERVA -->
+
+    {{-- Modal: nueva reserva — wizard de 4 pasos (Datos → Habitaciones → Huéspedes → Pagos) --}}
     <div class="modal fade" id="modalCrear" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content modal-california">
@@ -114,7 +115,6 @@
                     @csrf
                     <div class="modal-body">
 
-                        <!-- INDICADOR DE PASOS -->
                         <div class="pasos-indicadores">
                             @foreach(['Datos', 'Habitaciones', 'Huéspedes', 'Pagos'] as $i => $paso)
                                 <div class="paso-indicador {{ $i === 0 ? 'paso-activo' : '' }}"
@@ -125,22 +125,18 @@
                             @endforeach
                         </div>
 
-                        <!-- PASO 1: DATOS GENERALES -->
+                        {{-- Paso 1: tipo de estadía, fechas, aviso de franja horaria --}}
                         <div id="paso1">
 
                             <div class="campo-grupo">
                                 <label>Tipo de Estadía</label>
                                 <div class="campo-select">
                                     <i class="bi bi-clock campo-icono"></i>
-                                    <select name="tipo_estadia_id" id="tipoEstadiaId"
+                                    <select name="tipo_estadia" id="tipoEstadiaId"
                                         onchange="window.actualizarPaso1()" required>
                                         <option value="">Seleccionar...</option>
-                                        @foreach($tiposEstadia as $tipo)
-                                            <option value="{{ $tipo->id }}"
-                                                data-nombre="{{ $tipo->nombre }}">
-                                                {{ ucfirst($tipo->nombre) }}
-                                            </option>
-                                        @endforeach
+                                        <option value="horas">Horas</option>
+                                        <option value="noches">Noches</option>
                                     </select>
                                 </div>
                             </div>
@@ -166,11 +162,7 @@
                                 </div>
                             </div>
 
-                            <!-- AVISO FRANJA HORARIA -->
-                            <div id="avisoFranja" class="aviso-franja" style="display:none;">
-                                <i class="bi bi-info-circle" style="margin-right:6px;"></i>
-                                <span id="textoFranja"></span>
-                            </div>
+                            <div id="avisoFranja" class="aviso-franja" style="display:none;"></div>
 
                             <div class="campo-grupo">
                                 <label>
@@ -182,29 +174,29 @@
                                     <input type="text" name="observacion"
                                         placeholder="Notas adicionales" maxlength="255">
                                 </div>
+
+                                <small id="paso1ErrorGeneral" class="campo-error" style="display:none;">
+                                    Complete todos los campos obligatorios.
+                                </small>
                             </div>
 
                         </div>
 
-                        <!-- PASO 2: HABITACIONES -->
+                        {{-- Paso 2: mapa de habitaciones disponibles, cargado por AJAX --}}
                         <div id="paso2" style="display:none;">
 
-                            <!-- CARGANDO -->
                             <div id="paso2Cargando" class="paso2-estado">
                                 <i class="bi bi-arrow-repeat"></i>
                                 Buscando habitaciones disponibles...
                             </div>
 
-                            <!-- MAPA POR PISOS -->
                             <div id="paso2Mapa" style="display:none;"></div>
 
-                            <!-- SIN RESULTADOS -->
                             <div id="paso2Vacio" class="paso2-estado" style="display:none;">
                                 <i class="bi bi-door-closed"></i>
                                 No hay habitaciones disponibles para el rango seleccionado.
                             </div>
 
-                            <!-- RESUMEN SELECCIÓN -->
                             <div id="paso2Resumen" class="resumen-seleccion" style="display:none;">
                                 <div class="resumen-seleccion-inner">
                                     <span id="paso2ResumenTexto" class="resumen-texto"></span>
@@ -212,66 +204,56 @@
                                 </div>
                             </div>
 
+                            <small id="paso2ErrorSeleccion" class="campo-error" style="display:none;">
+                                Seleccione al menos una habitación.
+                            </small>
+
                         </div>
 
-                        <!-- PASO 3: HUÉSPEDES -->
+                        {{-- Paso 3: buscador de huéspedes + lista de seleccionados --}}
                         <div id="paso3" style="display:none;">
 
-                        <div id="paso3AvisoLimite" class="aviso-franja franja-horas"
-                            style="display:none; margin-bottom:14px;">
-                        </div>
+                            <div id="paso3AvisoLimite" class="aviso-franja franja-info mb-14" style="display:none;"></div>
 
-                            <!-- BUSCADOR COMPACTO -->
                             <div class="paso3-buscador">
-                                <div class="campo-grupo" style="max-width:150px;">
-                                    <label>Tipo Documento</label>
-                                    <div class="campo-select">
-                                        <i class="bi bi-id-card campo-icono"></i>
-                                        <select id="paso3TipoDoc">
-                                            <option value="">Todos</option>
-                                            @foreach($tiposDocumento as $td)
-                                                <option value="{{ $td->id }}">{{ strtoupper($td->nombre) }}</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="campo-grupo" style="max-width:150px;">
+                                <div class="campo-grupo campo-grupo-doc">
                                     <label>Nº Documento</label>
                                     <div class="campo-input">
                                         <i class="bi bi-123 campo-icono"></i>
-                                        <input type="text" id="paso3NumDoc" placeholder="12345678" maxlength="20">
+                                        <input type="text" id="paso3NumDoc" placeholder="12345678" maxlength="20" autocomplete="off">
                                     </div>
                                 </div>
                                 <div class="campo-grupo">
                                     <label>Nombre</label>
                                     <div class="campo-input">
                                         <i class="bi bi-person campo-icono"></i>
-                                        <input type="text" id="paso3Nombre" placeholder="Buscar por nombre..." maxlength="100">
+                                        <input type="text" id="paso3Nombre" placeholder="Buscar por nombre..." maxlength="100" autocomplete="off">
                                     </div>
                                 </div>
-                                <div style="display:flex; gap:8px; padding-bottom:8px;">
-                                    <button type="button" class="btn-primario" onclick="window.buscarHuesped()">
+                                <div class="buscador-acciones">
+                                    <button type="button" class="btn-primario" id="paso3BtnBuscar" onclick="window.buscarHuesped()">
                                         <i class="bi bi-search"></i> Buscar
                                     </button>
                                     <button type="button" class="btn-secundario" onclick="window.limpiarBuscadorHuesped()">
                                         <i class="bi bi-x-lg"></i> Limpiar
                                     </button>
                                 </div>
+
+                                <small id="paso3ErrorBusqueda" class="campo-error" style="display:none;">
+                                    Ingrese número de documento o nombre para buscar.
+                                </small>
                             </div>
 
-                            <!-- RESULTADOS -->
                             <div id="paso3Resultados" style="display:none;">
-                                <div class="piso-label" style="margin-bottom:6px;">Resultados</div>
+                                <div class="piso-label mb-6">Resultados</div>
                                 <div id="paso3ListaResultados" class="paso3-lista"></div>
                             </div>
 
-                            <!-- SIN RESULTADOS -->
                             <div id="paso3Vacio" class="paso2-estado" style="display:none;">
                                 <i class="bi bi-person-x"></i>
                                 No se encontró ningún huésped con esos datos.
                             </div>
 
-                            <!-- SELECCIONADOS -->
                             <div id="paso3Seleccionados" class="paso3-seleccionados" style="display:none;">
                                 <div class="paso3-seleccionados-titulo">
                                     Huéspedes agregados
@@ -280,57 +262,57 @@
                                 <div id="paso3ListaSeleccionados"></div>
                             </div>
 
+                            <small id="paso3ErrorGeneral" class="campo-error" style="display:none;"></small>
+
                         </div>
 
-
-                        <!-- PASO 4: PAGOS -->
+                        {{-- Paso 4: desglose de costos, monto y método de pago --}}
                         <div id="paso4" style="display:none;">
 
-                            <!-- DESGLOSE -->
-                            <div id="paso4Desglose" style="margin-bottom:20px;">
-
-                                <div class="piso-label" style="margin-bottom:10px;">Resumen de cobro</div>
-
+                            <div class="paso4-desglose">
+                                <h6>Desglose de costos</h6>
                                 <div id="paso4FilasDesglose"></div>
-
-                                <!-- Separador total -->
-                                <div style="display:flex; justify-content:space-between; align-items:center;
-                                    border-top: 2px solid var(--azul-marino); margin-top:10px; padding-top:10px;">
-                                    <span style="font-size:0.88rem; font-weight:700; color:var(--azul-marino);
-                                        text-transform:uppercase; letter-spacing:0.5px;">Total</span>
-                                    <strong id="paso4Total" style="font-size:1.1rem; color:var(--azul-marino);"></strong>
+                                <div class="paso4-fila paso4-fila-total">
+                                    <span>Total</span>
+                                    <span id="paso4Total">S/ 0.00</span>
                                 </div>
-
-                                <!-- Aviso ocupación -->
-                                <div id="paso4AvisoOcupacion" class="aviso-franja" style="display:none; margin-top:12px;"></div>
-
                             </div>
 
-                            <!-- PAGO -->
-                            <div class="campo-grupo">
-                                <label>
-                                    Monto a pagar
-                                    <span id="paso4MinimoLabel" class="label-opcional"></span>
-                                </label>
-                                <div class="campo-input">
-                                    <i class="bi bi-cash campo-icono"></i>
-                                    <input type="number" id="paso4MontoPago" step="0.01" min="0"
-                                        placeholder="0.00" oninput="window.validarMontoPago()">
-                                </div>
-                                <div id="paso4ErrorMonto" style="display:none; color:#dc3545;
-                                    font-size:0.78rem; margin-top:4px;"></div>
-                            </div>
+                            <div id="paso4AvisoOcupacion" class="aviso-franja" style="display:none;"></div>
 
-                            <div class="campo-grupo">
-                                <label>Método de Pago</label>
-                                <div class="campo-select">
-                                    <i class="bi bi-wallet2 campo-icono"></i>
-                                    <select id="paso4MetodoId">
-                                        <option value="">Seleccionar...</option>
+                            <div class="form-grid-2">
+                                <div class="mb-3">
+                                    <label for="paso4MontoPago" class="form-label">
+                                        Monto a pagar <span id="paso4MinimoLabel" class="text-muted"></span>
+                                    </label>
+                                    <input type="number" step="0.01" class="form-control" id="paso4MontoPago"
+                                        oninput="window.validarMontoPago()">
+                                    <div id="paso4ErrorMonto" class="campo-error" style="display:none;"></div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="paso4MetodoId" class="form-label">Método de pago</label>
+                                    <select class="form-select" id="paso4MetodoId" onchange="window.onCambioMetodoPago()">
+                                        <option value="">Seleccione...</option>
                                         @foreach($metodosPago as $metodo)
-                                            <option value="{{ $metodo->id }}">{{ ucfirst($metodo->nombre) }}</option>
+                                            <option value="{{ $metodo->id }}" data-nombre="{{ $metodo->nombre }}">
+                                                {{ ucfirst($metodo->nombre) }}
+                                            </option>
                                         @endforeach
                                     </select>
+
+                                    <small id="paso4ErrorMetodo" class="campo-error" style="display:none;">
+                                        Seleccione un método de pago.
+                                    </small>
+                                </div>
+                            </div>
+
+                            <div class="mb-3" id="paso4GrupoNumeroOperacion" style="display:none;">
+                                <label for="paso4NumeroOperacion" class="form-label">Número de operación</label>
+                                <input type="text" maxlength="30" class="form-control" id="paso4NumeroOperacion"
+                                    placeholder="Ej: 000123456789" oninput="window.validarNumeroOperacion()">
+                                <div id="paso4ErrorNumeroOperacion" class="campo-error" style="display:none;">
+                                    Ingrese el número de operación.
                                 </div>
                             </div>
 
@@ -343,7 +325,7 @@
                             <i class="bi bi-chevron-left"></i> Anterior
                         </button>
                         <div class="modal-footer-acciones">
-                            <button type="button" class="btn-secundario" data-bs-dismiss="modal">
+                            <button type="button" class="btn-secundario" onclick="window.confirmarCierreCrear()">
                                 Cancelar
                             </button>
                             <button type="button" class="btn-primario" id="btnSiguiente"
@@ -352,7 +334,7 @@
                             </button>
                             <button type="button" class="btn-primario" id="btnConfirmar"
                                 style="display:none;" onclick="window.confirmarReserva()">
-                                <i class="bi bi-check-lg"></i> Confirmar Reserva
+                                </i> Confirmar Reserva
                             </button>
                         </div>
                     </div>
@@ -361,7 +343,8 @@
         </div>
     </div>
 
-    <!-- MODAL VER DETALLE -->
+
+    {{-- Modal: ver detalle (datos cargados por JS: verReserva) --}}
     <div class="modal fade" id="modalVer" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content modal-california">
@@ -376,16 +359,13 @@
                 </div>
                 <div class="modal-body" id="verModalBody">
 
-                    <!-- CARGANDO -->
                     <div id="verCargando" class="paso2-estado">
                         <i class="bi bi-arrow-repeat"></i>
                         Cargando información...
                     </div>
 
-                    <!-- CONTENIDO -->
                     <div id="verContenido" style="display:none;">
 
-                        <!-- FILA SUPERIOR: datos generales + estado -->
                         <div class="ver-cabecera">
                             <div class="ver-cabecera-datos">
                                 <div class="ver-dato">
@@ -418,7 +398,6 @@
                             </div>
                         </div>
 
-                        <!-- HABITACIONES -->
                         <div class="ver-seccion">
                             <div class="ver-seccion-titulo">
                                 <i class="bi bi-door-open"></i> Habitaciones
@@ -426,7 +405,6 @@
                             <div id="verHabitaciones"></div>
                         </div>
 
-                        <!-- HUÉSPEDES -->
                         <div class="ver-seccion">
                             <div class="ver-seccion-titulo">
                                 <i class="bi bi-people"></i> Huéspedes
@@ -434,7 +412,6 @@
                             <div id="verHuespedes"></div>
                         </div>
 
-                        <!-- PAGOS -->
                         <div class="ver-seccion">
                             <div class="ver-seccion-titulo">
                                 <i class="bi bi-cash-coin"></i> Pagos
@@ -442,7 +419,6 @@
                             <div id="verPagos"></div>
                         </div>
 
-                        <!-- EXTENSIONES -->
                         <div class="ver-seccion" id="verSeccionExtensiones" style="display:none;">
                             <div class="ver-seccion-titulo">
                                 <i class="bi bi-clock-history"></i> Extensiones
@@ -450,7 +426,20 @@
                             <div id="verExtensiones"></div>
                         </div>
 
-                        <!-- SALDO -->
+                        <div class="ver-seccion" id="verSeccionDevoluciones" style="display:none;">
+                            <div class="ver-seccion-titulo">
+                                <i class="bi bi-arrow-counterclockwise"></i> Devoluciones
+                            </div>
+                            <div id="verDevoluciones"></div>
+                        </div>
+
+                        <div class="ver-seccion" id="verSeccionComprobante" style="display:none;">
+                            <div class="ver-seccion-titulo">
+                                <i class="bi bi-receipt"></i> Comprobante
+                            </div>
+                            <div id="verComprobante"></div>
+                        </div>
+
                         <div class="ver-saldo">
                             <div class="ver-saldo-fila">
                                 <span>Total reserva</span>
@@ -458,7 +447,7 @@
                             </div>
                             <div class="ver-saldo-fila">
                                 <span>Pagado</span>
-                                <strong id="verMontoPagado" style="color:#198754;"></strong>
+                                <strong id="verMontoPagado" class="ver-saldo-fila-exito"></strong>
                             </div>
                             <div class="ver-saldo-fila ver-saldo-pendiente">
                                 <span>Saldo pendiente</span>
@@ -479,9 +468,10 @@
         </div>
     </div>
 
-    <!-- MODAL REGISTRAR PAGO -->
+
+    {{-- Modal: registrar pago (datos cargados por JS: pagoReserva) --}}
     <div class="modal fade" id="modalPago" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered" style="max-width:480px;">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-angosto">
             <div class="modal-content modal-california">
                 <div class="modal-header">
                     <h5 class="modal-titulo">
@@ -495,32 +485,28 @@
 
                 <div class="modal-body">
 
-                    <!-- CARGANDO -->
                     <div id="pagoCargando" class="paso2-estado">
                         <i class="bi bi-arrow-repeat"></i>
                         Cargando información...
                     </div>
 
-                    <!-- CONTENIDO -->
                     <div id="pagoContenido" style="display:none;">
 
-                        <!-- Resumen saldo -->
-                        <div class="ver-saldo" style="margin-bottom:20px;">
+                        <div class="ver-saldo mb-20">
                             <div class="ver-saldo-fila">
                                 <span>Total reserva</span>
                                 <strong id="pagoMontoTotal"></strong>
                             </div>
                             <div class="ver-saldo-fila">
                                 <span>Pagado</span>
-                                <strong id="pagoMontoPagado" style="color:#198754;"></strong>
+                                <strong id="pagoMontoPagado" class="ver-saldo-fila-exito"></strong>
                             </div>
                             <div class="ver-saldo-fila ver-saldo-pendiente">
                                 <span>Saldo pendiente</span>
-                                <strong id="pagoSaldo" style="color:#dc3545;"></strong>
+                                <strong id="pagoSaldo" class="ver-saldo-fila-peligro"></strong>
                             </div>
                         </div>
 
-                        <!-- Monto -->
                         <div class="campo-grupo">
                             <label>
                                 Monto a pagar
@@ -531,28 +517,41 @@
                                 <input type="number" id="pagoMonto" step="0.01" min="0.01"
                                     placeholder="0.00" oninput="window.validarMontoPagoModal()">
                             </div>
-                            <div id="pagoErrorMonto" style="display:none; color:#dc3545;
-                                font-size:0.78rem; margin-top:4px;"></div>
+                            <small id="pagoErrorMonto" class="campo-error" style="display:none;"></small>
                         </div>
 
-                        <!-- Método -->
                         <div class="campo-grupo">
                             <label>Método de Pago</label>
                             <div class="campo-select">
                                 <i class="bi bi-wallet2 campo-icono"></i>
-                                <select id="pagoMetodoId">
+                                <select id="pagoMetodoId" onchange="window.onCambioMetodoPagoModal()">
                                     <option value="">Seleccionar...</option>
                                     @foreach($metodosPago as $metodo)
-                                        <option value="{{ $metodo->id }}">
+                                        <option value="{{ $metodo->id }}" data-nombre="{{ $metodo->nombre }}">
                                             {{ ucfirst($metodo->nombre) }}
                                         </option>
                                     @endforeach
                                 </select>
+
+                                <small id="pagoErrorMetodo" class="campo-error" style="display:none;">
+                                    Seleccione un método de pago.
+                                </small>
                             </div>
                         </div>
 
-                        <!-- Aviso tipo pago resultante -->
-                        <div id="pagoAvisoTipo" class="aviso-franja" style="display:none; margin-top:4px;"></div>
+                        <div class="campo-grupo" id="pagoGrupoNumeroOperacion" style="display:none;">
+                            <label>Número de operación</label>
+                            <div class="campo-input">
+                                <i class="bi bi-hash campo-icono"></i>
+                                <input type="text" id="pagoNumeroOperacion" maxlength="30"
+                                    placeholder="Ej: 000123456789" oninput="window.validarNumeroOperacionPago()">
+                            </div>
+                            <small id="pagoErrorNumeroOperacion" class="campo-error" style="display:none;">
+                                Ingrese el número de operación.
+                            </small>
+                        </div>
+
+                        <div id="pagoAvisoTipo" class="aviso-franja mt-4" style="display:none;"></div>
 
                     </div>
                 </div>
@@ -563,7 +562,7 @@
                     </button>
                     <button type="button" class="btn-primario" id="pagoBtnConfirmar"
                         style="display:none;" onclick="window.confirmarPago()">
-                        <i class="bi bi-check-lg"></i> Confirmar Pago
+                        </i> Confirmar Pago
                     </button>
                 </div>
 
@@ -571,9 +570,373 @@
         </div>
     </div>
 
-    <!-- MODAL CHECK-IN -->
+    {{-- Modal: editar fechas/tipo (datos cargados por JS: editarFechasReserva) --}}
+    <div class="modal fade" id="modalEditarFechas" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content modal-california">
+                <div class="modal-header">
+                    <h5 class="modal-titulo">
+                        <i class="bi bi-calendar-event"></i>
+                        Editar Fechas/Tipo — Reserva <span id="efReservaId"></span>
+                    </h5>
+                    <button type="button" class="btn-cerrar-modal" data-bs-dismiss="modal">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+
+                <div class="modal-body">
+
+                    <div id="efCargando" class="paso2-estado">
+                        <i class="bi bi-arrow-repeat"></i>
+                        Cargando información...
+                    </div>
+
+                    <div id="efContenido" style="display:none;">
+
+                        <div class="campo-grupo">
+                            <label>Tipo de Estadía</label>
+                            <div class="campo-select">
+                                <i class="bi bi-clock campo-icono"></i>
+                                <select id="efTipoEstadiaId" onchange="window.efOnTipoChange()">
+                                    <option value="horas">Horas</option>
+                                    <option value="noches">Noches</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="fechas-grid">
+                            <div class="campo-grupo">
+                                <label>Fecha y Hora de Entrada</label>
+                                <div class="campo-input">
+                                    <i class="bi bi-calendar campo-icono"></i>
+                                    <input type="datetime-local" id="efFechaEntrada"
+                                        onchange="window.efOnEntradaChange()">
+                                </div>
+                            </div>
+                            <div class="campo-grupo">
+                                <label>Fecha y Hora de Salida</label>
+                                <div class="campo-input">
+                                    <i class="bi bi-calendar-check campo-icono"></i>
+                                    <input type="datetime-local" id="efFechaSalida"
+                                        onchange="window.efOnSalidaChange()">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="efAvisoFranja" class="aviso-franja" style="display:none;"></div>
+
+                        <div id="efAvisoConflicto" class="aviso-franja franja-peligro" style="display:none;"></div>
+
+                        <div class="campo-grupo" id="efObservacionGrupo">
+                            <label>
+                                Observación
+                                <span class="label-opcional">(opcional)</span>
+                            </label>
+                            <div class="campo-input">
+                                <i class="bi bi-chat-left-text campo-icono"></i>
+                                <input type="text" id="efObservacion"
+                                    placeholder="Notas adicionales" maxlength="255">
+                            </div>
+                        </div>
+
+                        <small id="efErrorGeneral" class="campo-error" style="display:none;">
+                            Complete todos los campos obligatorios.
+                        </small>
+
+                        <div id="efResumen" class="mt-8" style="display:none;">
+
+                            <div class="ver-saldo">
+                                <div class="ver-saldo-fila">
+                                    <span>Nuevo total calculado</span>
+                                    <strong id="efNuevoTotal"></strong>
+                                </div>
+                                <div class="ver-saldo-fila">
+                                    <span>Ya pagado</span>
+                                    <strong id="efMontoPagado" class="ver-saldo-fila-exito"></strong>
+                                </div>
+                                <div class="ver-saldo-fila ver-saldo-pendiente">
+                                    <span id="efSaldoLabel">Saldo pendiente</span>
+                                    <strong id="efSaldo"></strong>
+                                </div>
+                            </div>
+
+                            <div id="efAvisoCaso" class="aviso-franja mt-12" style="display:none;"></div>
+
+                            {{-- Pago adicional — solo Caso A --}}
+                            <div id="efPagoGrupo" class="mt-16" style="display:none;">
+                                <div class="campo-grupo">
+                                    <label>
+                                        Monto a pagar ahora
+                                        <span id="efPagoMinimoLabel" class="label-opcional"></span>
+                                    </label>
+                                    <div class="campo-input">
+                                        <i class="bi bi-cash campo-icono"></i>
+                                        <input type="number" id="efPagoMonto" step="0.01"
+                                            placeholder="0.00" oninput="window.efValidarMonto()">
+                                    </div>
+                                    <small id="efPagoError" class="campo-error" style="display:none;"></small>
+                                </div>
+                                <div class="campo-grupo">
+                                    <label>Método de Pago</label>
+                                    <div class="campo-select">
+                                        <i class="bi bi-wallet2 campo-icono"></i>
+                                        <select id="efPagoMetodo" onchange="window.efOnCambioMetodo()">
+                                            <option value="">Seleccionar...</option>
+                                            @foreach($metodosPago as $metodo)
+                                                <option value="{{ $metodo->id }}" data-nombre="{{ $metodo->nombre }}">
+                                                    {{ ucfirst($metodo->nombre) }}
+                                                </option>
+                                            @endforeach
+                                        </select>
+
+                                        <small id="efErrorMetodo" class="campo-error" style="display:none;">
+                                            Seleccione un método de pago.
+                                        </small>
+                                    </div>
+                                </div>
+
+                                <div class="campo-grupo" id="efGrupoNumeroOperacion" style="display:none;">
+                                    <label>Número de operación</label>
+                                    <div class="campo-input">
+                                        <i class="bi bi-hash campo-icono"></i>
+                                        <input type="text" id="efNumeroOperacion" maxlength="30"
+                                            placeholder="Ej: 000123456789" oninput="window.efValidarNumeroOperacion()">
+                                    </div>
+                                    <small id="efErrorNumeroOperacion" class="campo-error" style="display:none;">
+                                        Ingrese el número de operación.
+                                    </small>
+                                </div>
+
+                            </div>
+
+                            {{-- Crédito a favor — solo Caso C --}}
+                            <div id="efCreditoGrupo" class="mt-16" style="display:none;">
+                                <div class="campo-grupo">
+                                    <label>
+                                        Monto a devolver ahora
+                                        <span id="efCreditoMaximoLabel" class="label-opcional"></span>
+                                    </label>
+                                    <div class="campo-input">
+                                        <i class="bi bi-cash campo-icono"></i>
+                                        <input type="number" id="efCreditoMontoDevuelto" step="0.01"
+                                            placeholder="0.00" oninput="window.efValidarCredito()">
+                                    </div>
+                                    <small id="efCreditoError" class="campo-error" style="display:none;"></small>
+                                </div>
+
+                                <div id="efCreditoRetenidoInfo" class="aviso-franja franja-info mt-4"></div>
+
+                                <div class="campo-grupo mt-12" id="efCreditoMetodoGrupo" style="display:none;">
+                                    <label>Método de Devolución</label>
+                                    <div class="campo-select">
+                                        <i class="bi bi-wallet2 campo-icono"></i>
+                                        <select id="efCreditoMetodo" onchange="window.efOnCambioMetodoCredito()">
+                                            <option value="">Seleccionar...</option>
+                                            @foreach($metodosPago as $metodo)
+                                                <option value="{{ $metodo->id }}" data-nombre="{{ $metodo->nombre }}">
+                                                    {{ ucfirst($metodo->nombre) }}
+                                                </option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    <small id="efCreditoErrorMetodo" class="campo-error" style="display:none;">
+                                        Seleccione un método para la devolución.
+                                    </small>
+                                </div>
+
+                                <div class="campo-grupo mt-12" id="efCreditoGrupoNumeroOperacion" style="display:none;">
+                                    <label>Número de operación</label>
+                                    <div class="campo-input">
+                                        <i class="bi bi-hash campo-icono"></i>
+                                        <input type="text" id="efCreditoNumeroOperacion" maxlength="30"
+                                            placeholder="Ej: 000123456789" oninput="window.efValidarNumeroOperacionCredito()">
+                                    </div>
+                                    <small id="efCreditoErrorNumeroOperacion" class="campo-error" style="display:none;">
+                                        Ingrese el número de operación.
+                                    </small>
+                                </div>
+                            </div>
+
+                        </div>
+
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn-secundario" data-bs-dismiss="modal">
+                        Cancelar
+                    </button>
+                    <button type="button" class="btn-primario" id="efBtnGuardar"
+                        style="display:none;" onclick="window.efGuardar()">
+                        </i> Guardar Cambios
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    {{-- Modal: reasignar habitaciones (datos cargados por JS: reasignarReserva) --}}
+    <div class="modal fade" id="modalReasignar" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content modal-california">
+                <div class="modal-header">
+                    <h5 class="modal-titulo">
+                        <i class="bi bi-arrow-left-right"></i>
+                        Reasignar Habitaciones — Reserva <span id="raReservaId"></span>
+                    </h5>
+                    <button type="button" class="btn-cerrar-modal" data-bs-dismiss="modal">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+
+                <div class="modal-body">
+
+                    <div id="raCargando" class="paso2-estado">
+                        <i class="bi bi-arrow-repeat"></i>
+                        Cargando habitaciones...
+                    </div>
+
+                    <div id="raContenido" style="display:none;">
+
+                        <div class="piso-label mb-6">
+                            Habitaciones de la reserva
+                            <span style="opacity:0.6; font-weight:400;">— seleccione cuál reasignar</span>
+                        </div>
+                        <div class="piso-habitaciones" id="raHabsActuales"></div>
+
+                        <div id="raMapaAlternativas" class="mt-20" style="display:none;">
+                            <div class="piso-label mb-6">
+                                Habitaciones disponibles
+                            </div>
+                            <div id="raMapaContenedor"></div>
+                        </div>
+
+                        <div id="raSinAlternativas" class="paso2-estado mt-20" style="display:none;">
+                            <i class="bi bi-door-closed"></i>
+                            No hay habitaciones disponibles del mismo tipo para reasignar.
+                        </div>
+
+                        <div id="raAvisoSinCambios" class="aviso-franja franja-advertencia mt-16"
+                            style="display:none;">
+                            <i class="bi bi-exclamation-triangle-fill"></i>
+                            Seleccione al menos una habitación alternativa para guardar.
+                        </div>
+
+                    </div>
+
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn-secundario" data-bs-dismiss="modal">
+                        Cancelar
+                    </button>
+                    <button type="button" class="btn-primario" id="raBtnGuardar"
+                        style="display:none;" onclick="window.raGuardar()">
+                        </i> Guardar Cambios
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    {{-- Modal: editar huéspedes (datos cargados por JS: huespedesReserva) --}}
+    <div class="modal fade" id="modalHuespedes" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content modal-california">
+                <div class="modal-header">
+                    <h5 class="modal-titulo">
+                        <i class="bi bi-people"></i>
+                        Editar Huéspedes — Reserva <span id="huespedReservaId"></span>
+                    </h5>
+                    <button type="button" class="btn-cerrar-modal" data-bs-dismiss="modal">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+
+                <div class="modal-body">
+
+                    <div id="huespedCargando" class="paso2-estado">
+                        <i class="bi bi-arrow-repeat"></i>
+                        Cargando huéspedes...
+                    </div>
+
+                    <div id="huespedContenido" style="display:none;">
+
+                        <div id="huespedAvisoLimite" class="aviso-franja franja-info mb-14" style="display:none;"></div>
+
+                        <div class="paso3-buscador">
+                            <div class="campo-grupo campo-grupo-doc">
+                                <label>Nº Documento</label>
+                                <div class="campo-input">
+                                    <i class="bi bi-123 campo-icono"></i>
+                                    <input type="text" id="huespedNumDoc" placeholder="12345678" maxlength="20" autocomplete="off">
+                                </div>
+                            </div>
+                            <div class="campo-grupo">
+                                <label>Nombre</label>
+                                <div class="campo-input">
+                                    <i class="bi bi-person campo-icono"></i>
+                                    <input type="text" id="huespedNombre" placeholder="Buscar por nombre..." maxlength="100" autocomplete="off">
+                                </div>
+                            </div>
+                            <div class="buscador-acciones">
+                                <button type="button" class="btn-primario" id="huespedBtnBuscar"
+                                    onclick="window.buscarHuespedModal()">
+                                    <i class="bi bi-search"></i> Buscar
+                                </button>
+                                <button type="button" class="btn-secundario"
+                                    onclick="window.limpiarBuscadorHuespedModal()">
+                                    <i class="bi bi-x-lg"></i> Limpiar
+                                </button>
+                            </div>
+
+                            <small id="huespedErrorBusqueda" class="campo-error" style="display:none;">
+                                Ingrese número de documento o nombre para buscar.
+                            </small>
+                        </div>
+
+                        <div id="huespedResultados" style="display:none;">
+                            <div class="piso-label mb-6">Resultados</div>
+                            <div id="huespedListaResultados" class="paso3-lista"></div>
+                        </div>
+
+                        <div id="huespedVacio" class="paso2-estado" style="display:none;">
+                            <i class="bi bi-person-x"></i>
+                            No se encontró ningún huésped con esos datos.
+                        </div>
+
+                        <div id="huespedSeleccionados" class="paso3-seleccionados mt-16" style="display:none;">
+                            <div class="paso3-seleccionados-titulo">
+                                Huéspedes en esta reserva
+                                <span id="huespedContadorBadge" class="badge-contador-dorado"></span>
+                            </div>
+                            <div id="huespedListaSeleccionados"></div>
+                        </div>
+
+                        <small id="huespedErrorGeneral" class="campo-error" style="display:none;"></small>
+
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn-secundario" data-bs-dismiss="modal">
+                        Cancelar
+                    </button>
+                    <button type="button" class="btn-primario" id="huespedBtnGuardar"
+                        style="display:none;" onclick="window.guardarHuespedes()">
+                        </i> Guardar Cambios
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    {{-- Modal: check-in (datos cargados por JS: checkinReserva) --}}
     <div class="modal fade" id="modalCheckin" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered" style="max-width:480px;">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-angosto">
             <div class="modal-content modal-california">
                 <div class="modal-header">
                     <h5 class="modal-titulo">
@@ -601,25 +964,37 @@
                             <div id="checkinHabitaciones"></div>
                         </div>
 
-                        <div id="checkinRecargo" class="aviso-franja" style="display:none; margin-top:12px;"></div>
+                        <div id="checkinRecargo" class="aviso-franja franja-info mt-12" style="display:none;"></div>
 
-                        <div id="checkinMetodoGrupo" class="campo-grupo" style="display:none; margin-top:16px;">
+                        <div id="checkinMetodoGrupo" class="campo-grupo mt-16" style="display:none;">
                             <label>Método de Pago del Recargo</label>
                             <div class="campo-select">
                                 <i class="bi bi-wallet2 campo-icono"></i>
-                                <select id="checkinMetodoId">
+                                <select id="checkinMetodoId" onchange="window.onCambioMetodoCheckin()">
                                     <option value="">Seleccionar...</option>
                                     @foreach($metodosPago as $metodo)
-                                        <option value="{{ $metodo->id }}">{{ ucfirst($metodo->nombre) }}</option>
+                                        <option value="{{ $metodo->id }}" data-nombre="{{ $metodo->nombre }}">
+                                            {{ ucfirst($metodo->nombre) }}
+                                        </option>
                                     @endforeach
                                 </select>
                             </div>
-                            <div id="checkinErrorMetodo" style="display:none; color:#dc3545;
-                                font-size:0.78rem; margin-top:4px;">
+                            <small id="checkinErrorMetodo" class="campo-error" style="display:none;">
                                 Seleccione un método de pago para el recargo.
-                            </div>
+                            </small>
                         </div>
 
+                        <div class="campo-grupo mt-12" id="checkinGrupoNumeroOperacion" style="display:none;">
+                            <label>Número de operación</label>
+                            <div class="campo-input">
+                                <i class="bi bi-hash campo-icono"></i>
+                                <input type="text" id="checkinNumeroOperacion" maxlength="30"
+                                    placeholder="Ej: 000123456789" oninput="window.validarNumeroOperacionCheckin()">
+                            </div>
+                            <small id="checkinErrorNumeroOperacion" class="campo-error" style="display:none;">
+                                Ingrese el número de operación.
+                            </small>
+                        </div>
                     </div>
                 </div>
 
@@ -629,346 +1004,17 @@
                     </button>
                     <button type="button" class="btn-primario" id="checkinBtnConfirmar"
                         style="display:none;" onclick="window.confirmarCheckin()">
-                        <i class="bi bi-box-arrow-in-right"></i> Confirmar Check-in
+                        </i> Confirmar Check-in
                     </button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- MODAL EDITAR FECHAS/TIPO -->
-    <div class="modal fade" id="modalEditarFechas" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered modal-lg">
-            <div class="modal-content modal-california">
-                <div class="modal-header">
-                    <h5 class="modal-titulo">
-                        <i class="bi bi-calendar-event"></i>
-                        Editar Fechas/Tipo — Reserva <span id="efReservaId"></span>
-                    </h5>
-                    <button type="button" class="btn-cerrar-modal" data-bs-dismiss="modal">
-                        <i class="bi bi-x-lg"></i>
-                    </button>
-                </div>
 
-                <div class="modal-body">
-
-                    <!-- CARGANDO -->
-                    <div id="efCargando" class="paso2-estado">
-                        <i class="bi bi-arrow-repeat"></i>
-                        Cargando información...
-                    </div>
-
-                    <!-- CONTENIDO -->
-                    <div id="efContenido" style="display:none;">
-
-                        <!-- Tipo estadía -->
-                        <div class="campo-grupo">
-                            <label>Tipo de Estadía</label>
-                            <div class="campo-select">
-                                <i class="bi bi-clock campo-icono"></i>
-                                <select id="efTipoEstadiaId" onchange="window.efOnTipoChange()">
-                                    @foreach($tiposEstadia as $tipo)
-                                        <option value="{{ $tipo->id }}"
-                                            data-nombre="{{ $tipo->nombre }}">
-                                            {{ ucfirst($tipo->nombre) }}
-                                        </option>
-                                    @endforeach
-                                </select>
-                            </div>
-                        </div>
-
-                        <!-- Fechas -->
-                        <div class="fechas-grid">
-                            <div class="campo-grupo">
-                                <label>Fecha y Hora de Entrada</label>
-                                <div class="campo-input">
-                                    <i class="bi bi-calendar campo-icono"></i>
-                                    <input type="datetime-local" id="efFechaEntrada"
-                                        onchange="window.efOnEntradaChange()">
-                                </div>
-                            </div>
-                            <div class="campo-grupo">
-                                <label>Fecha y Hora de Salida</label>
-                                <div class="campo-input">
-                                    <i class="bi bi-calendar-check campo-icono"></i>
-                                    <input type="datetime-local" id="efFechaSalida"
-                                        onchange="window.efOnSalidaChange()">
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Aviso franja -->
-                        <div id="efAvisoFranja" class="aviso-franja" style="display:none;"></div>
-
-                        <!-- Observación -->
-                        <div class="campo-grupo">
-                            <label>
-                                Observación
-                                <span class="label-opcional">(opcional)</span>
-                            </label>
-                            <div class="campo-input">
-                                <i class="bi bi-chat-left-text campo-icono"></i>
-                                <input type="text" id="efObservacion"
-                                    placeholder="Notas adicionales" maxlength="255">
-                            </div>
-                        </div>
-
-                        <!-- Resumen recálculo -->
-                        <div id="efResumen" style="display:none; margin-top:8px;">
-
-                            <div class="ver-saldo">
-                                <div class="ver-saldo-fila">
-                                    <span>Nuevo total calculado</span>
-                                    <strong id="efNuevoTotal"></strong>
-                                </div>
-                                <div class="ver-saldo-fila">
-                                    <span>Ya pagado</span>
-                                    <strong id="efMontoPagado" style="color:#198754;"></strong>
-                                </div>
-                                <div class="ver-saldo-fila ver-saldo-pendiente">
-                                    <span id="efSaldoLabel">Saldo pendiente</span>
-                                    <strong id="efSaldo"></strong>
-                                </div>
-                            </div>
-
-                            <!-- Aviso por caso -->
-                            <div id="efAvisoCaso" class="aviso-franja" style="display:none; margin-top:12px;"></div>
-
-                            <!-- Pago adicional (solo Caso A) -->
-                            <div id="efPagoGrupo" style="display:none; margin-top:16px;">
-                                <div class="campo-grupo">
-                                    <label>
-                                        Monto a pagar ahora
-                                        <span id="efPagoMinimoLabel" class="label-opcional"></span>
-                                    </label>
-                                    <div class="campo-input">
-                                        <i class="bi bi-cash campo-icono"></i>
-                                        <input type="number" id="efPagoMonto" step="0.01"
-                                            placeholder="0.00" oninput="window.efValidarMonto()">
-                                    </div>
-                                    <div id="efPagoError" style="display:none; color:#dc3545;
-                                        font-size:0.78rem; margin-top:4px;"></div>
-                                </div>
-                                <div class="campo-grupo">
-                                    <label>Método de Pago</label>
-                                    <div class="campo-select">
-                                        <i class="bi bi-wallet2 campo-icono"></i>
-                                        <select id="efPagoMetodo">
-                                            <option value="">Seleccionar...</option>
-                                            @foreach($metodosPago as $metodo)
-                                                <option value="{{ $metodo->id }}">
-                                                    {{ ucfirst($metodo->nombre) }}
-                                                </option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                </div>
-                            </div>
-
-                        </div>
-
-                    </div>
-                </div>
-
-                <div class="modal-footer">
-                    <button type="button" class="btn-secundario" data-bs-dismiss="modal">
-                        Cancelar
-                    </button>
-                    <button type="button" class="btn-primario" id="efBtnGuardar"
-                        style="display:none;" onclick="window.efGuardar()">
-                        <i class="bi bi-check-lg"></i> Guardar Cambios
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- MODAL REASIGNAR HABITACIÓN -->
-    <div class="modal fade" id="modalReasignar" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered modal-lg">
-            <div class="modal-content modal-california">
-                <div class="modal-header">
-                    <h5 class="modal-titulo">
-                        <i class="bi bi-arrow-left-right"></i>
-                        Reasignar Habitación — Reserva <span id="raReservaId"></span>
-                    </h5>
-                    <button type="button" class="btn-cerrar-modal" data-bs-dismiss="modal">
-                        <i class="bi bi-x-lg"></i>
-                    </button>
-                </div>
-
-                <div class="modal-body">
-
-                    <!-- CARGANDO -->
-                    <div id="raCargando" class="paso2-estado">
-                        <i class="bi bi-arrow-repeat"></i>
-                        Cargando habitaciones...
-                    </div>
-
-                    <!-- CONTENIDO -->
-                    <div id="raContenido" style="display:none;">
-
-                        <!-- Info rango -->
-                        <div id="raInfoRango" class="aviso-franja franja-normal"
-                            style="margin-bottom:16px;"></div>
-
-                        <!-- Habitaciones actuales (selector) -->
-                        <div class="piso-label" style="margin-bottom:6px;">
-                            Habitaciones de la reserva
-                            <span style="opacity:0.6; font-weight:400;">— seleccione cuál reasignar</span>
-                        </div>
-                        <div class="piso-habitaciones" id="raHabsActuales"></div>
-
-                        <!-- Mapa de alternativas -->
-                        <div id="raMapaAlternativas" style="margin-top:20px; display:none;">
-                            <div class="piso-label" style="margin-bottom:6px;">
-                                Habitaciones disponibles — N° <span id="raNumeroActual"></span>
-                            </div>
-                            <div id="raMapaContenedor"></div>
-                        </div>
-
-                        <!-- Sin alternativas -->
-                        <div id="raSinAlternativas" class="paso2-estado" style="display:none; margin-top:20px;">
-                            <i class="bi bi-door-closed"></i>
-                            No hay habitaciones disponibles del mismo tipo para reasignar.
-                        </div>
-
-                        <!-- Aviso sin cambios -->
-                        <div id="raAvisoSinCambios" class="aviso-franja franja-horas"
-                            style="display:none; margin-top:16px;">
-                            <i class="bi bi-info-circle"></i>
-                            Seleccione al menos una habitación alternativa para guardar.
-                        </div>
-
-                    </div>
-
-                </div>
-
-                <div class="modal-footer">
-                    <button type="button" class="btn-secundario" data-bs-dismiss="modal">
-                        Cancelar
-                    </button>
-                    <button type="button" class="btn-primario" id="raBtnGuardar"
-                        style="display:none;" onclick="window.raGuardar()">
-                        <i class="bi bi-check-lg"></i> Guardar Cambios
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- MODAL EDITAR HUÉSPEDES -->
-    <div class="modal fade" id="modalHuespedes" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered modal-lg">
-            <div class="modal-content modal-california">
-                <div class="modal-header">
-                    <h5 class="modal-titulo">
-                        <i class="bi bi-people"></i>
-                        Editar Huéspedes — Reserva <span id="huespedReservaId"></span>
-                    </h5>
-                    <button type="button" class="btn-cerrar-modal" data-bs-dismiss="modal">
-                        <i class="bi bi-x-lg"></i>
-                    </button>
-                </div>
-    
-                <div class="modal-body">
-    
-                    <!-- CARGANDO -->
-                    <div id="huespedCargando" class="paso2-estado">
-                        <i class="bi bi-arrow-repeat"></i>
-                        Cargando huéspedes...
-                    </div>
-    
-                    <!-- CONTENIDO -->
-                    <div id="huespedContenido" style="display:none;">
-    
-                        <!-- Aviso límite -->
-                        <div id="huespedAvisoLimite" class="aviso-franja franja-horas"
-                            style="display:none; margin-bottom:14px;"></div>
-    
-                        <!-- BUSCADOR (igual al paso 3) -->
-                        <div class="paso3-buscador">
-                            <div class="campo-grupo" style="max-width:150px;">
-                                <label>Tipo Documento</label>
-                                <div class="campo-select">
-                                    <i class="bi bi-id-card campo-icono"></i>
-                                    <select id="huespedTipoDoc">
-                                        <option value="">Todos</option>
-                                        @foreach($tiposDocumento as $td)
-                                            <option value="{{ $td->id }}">{{ strtoupper($td->nombre) }}</option>
-                                        @endforeach
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="campo-grupo" style="max-width:150px;">
-                                <label>Nº Documento</label>
-                                <div class="campo-input">
-                                    <i class="bi bi-123 campo-icono"></i>
-                                    <input type="text" id="huespedNumDoc"
-                                        placeholder="12345678" maxlength="20">
-                                </div>
-                            </div>
-                            <div class="campo-grupo">
-                                <label>Nombre</label>
-                                <div class="campo-input">
-                                    <i class="bi bi-person campo-icono"></i>
-                                    <input type="text" id="huespedNombre"
-                                        placeholder="Buscar por nombre..." maxlength="100">
-                                </div>
-                            </div>
-                            <div style="display:flex; gap:8px; padding-bottom:8px;">
-                                <button type="button" class="btn-primario"
-                                    onclick="window.buscarHuespedModal()">
-                                    <i class="bi bi-search"></i> Buscar
-                                </button>
-                                <button type="button" class="btn-secundario"
-                                    onclick="window.limpiarBuscadorHuespedModal()">
-                                    <i class="bi bi-x-lg"></i> Limpiar
-                                </button>
-                            </div>
-                        </div>
-    
-                        <!-- RESULTADOS BÚSQUEDA -->
-                        <div id="huespedResultados" style="display:none;">
-                            <div class="piso-label" style="margin-bottom:6px;">Resultados</div>
-                            <div id="huespedListaResultados" class="paso3-lista"></div>
-                        </div>
-    
-                        <!-- SIN RESULTADOS -->
-                        <div id="huespedVacio" class="paso2-estado" style="display:none;">
-                            <i class="bi bi-person-x"></i>
-                            No se encontró ningún huésped con esos datos.
-                        </div>
-    
-                        <!-- HUÉSPEDES EN LA RESERVA -->
-                        <div id="huespedSeleccionados" class="paso3-seleccionados"
-                            style="display:none; margin-top:16px;">
-                            <div class="paso3-seleccionados-titulo">
-                                Huéspedes en esta reserva
-                                <span id="huespedContadorBadge" class="badge-contador-dorado"></span>
-                            </div>
-                            <div id="huespedListaSeleccionados"></div>
-                        </div>
-    
-                    </div>
-                </div>
-    
-                <div class="modal-footer">
-                    <button type="button" class="btn-secundario" data-bs-dismiss="modal">
-                        Cancelar
-                    </button>
-                    <button type="button" class="btn-primario" id="huespedBtnGuardar"
-                        style="display:none;" onclick="window.guardarHuespedes()">
-                        <i class="bi bi-check-lg"></i> Guardar Cambios
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- MODAL AGREGAR EXTENSIÓN -->
+    {{-- Modal: agregar extensión (datos cargados por JS: extensionReserva) --}}
     <div class="modal fade" id="modalExtension" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered" style="max-width:520px;">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-medio">
             <div class="modal-content modal-california">
                 <div class="modal-header">
                     <h5 class="modal-titulo">
@@ -979,20 +1025,19 @@
                         <i class="bi bi-x-lg"></i>
                     </button>
                 </div>
-    
+
                 <div class="modal-body">
-    
-                    <!-- CARGANDO -->
+
                     <div id="extCargando" class="paso2-estado" style="display:none;">
                         <i class="bi bi-arrow-repeat"></i>
                         Verificando disponibilidad...
                     </div>
-    
-                    <!-- FASE A: Ingresar cantidad -->
+
+                    {{-- Fase A: ingresar cantidad --}}
                     <div id="extFaseA">
-    
-                        <div id="extTipoLabel" class="piso-label" style="margin-bottom:14px;"></div>
-    
+
+                        <div id="extTipoLabel" class="piso-label mb-14"></div>
+
                         <div class="campo-grupo">
                             <label id="extCantidadLabel">Cantidad a extender</label>
                             <div class="campo-input">
@@ -1001,89 +1046,107 @@
                                     placeholder="1" value="1"
                                     oninput="window.extLimpiarResultado()">
                             </div>
+
+                            <small id="extErrorCantidad" class="campo-error" style="display:none;">
+                                La cantidad mínima es 1.
+                            </small>
                         </div>
-    
+
                         <button type="button" class="btn-primario" style="width:100%;"
                             onclick="window.extVerificar()">
                             <i class="bi bi-search"></i> Verificar disponibilidad
                         </button>
-    
+
                     </div>
-    
-                    <!-- FASE B: Resultado verificación -->
-                    <div id="extFaseB" style="display:none; margin-top:20px;">
-    
-                        <!-- Info salida -->
-                        <div id="extInfoSalida" class="aviso-franja franja-normal"
-                            style="margin-bottom:14px;"></div>
-    
-                        <!-- Lista habitaciones -->
+
+                    {{-- Fase B: resultado de la verificación --}}
+                    <div id="extFaseB" class="mt-20" style="display:none;">
+
+                        <div id="extInfoSalida" class="aviso-franja franja-info mb-14"></div>
+
+                        <div id="extAccionesMasivas" class="ext-acciones-masivas">
+                            <button type="button" class="btn-secundario ext-btn-masivo"
+                                onclick="window.extSeleccionarTodas(true)">Marcar todas</button>
+                            <button type="button" class="btn-secundario ext-btn-masivo"
+                                onclick="window.extSeleccionarTodas(false)">Ninguna</button>
+                        </div>
+
                         <div class="ver-seccion">
                             <div class="ver-seccion-titulo">
                                 <i class="bi bi-door-open"></i> Habitaciones
                             </div>
                             <div id="extHabitaciones"></div>
                         </div>
-    
-                        <!-- Aviso si hay conflictos -->
-                        <div id="extAvisoConflicto" class="aviso-franja franja-horas"
-                            style="display:none; margin-top:10px;"></div>
-    
-                        <!-- FASE C: Pago (solo si hay disponibles) -->
-                        <div id="extFaseC" style="display:none; margin-top:16px;">
-    
-                            <div style="display:flex; justify-content:space-between;
-                                align-items:center; border-top:2px solid var(--azul-marino);
-                                padding-top:12px; margin-bottom:14px;">
-                                <span style="font-size:0.88rem; font-weight:700;
-                                    color:var(--azul-marino); text-transform:uppercase;
-                                    letter-spacing:0.5px;">Total extensión</span>
-                                <strong id="extMontoTotal"
-                                    style="font-size:1.1rem; color:var(--azul-marino);"></strong>
+
+                        <div id="extAvisoSinSeleccion" class="aviso-franja franja-advertencia mt-10" style="display:none;">
+                            <i class="bi bi-exclamation-triangle-fill"></i>
+                            Seleccione al menos una habitación para continuar.
+                        </div>
+
+                        <div id="extAvisoConflicto" class="aviso-franja franja-info mt-10" style="display:none;"></div>
+
+                        {{-- Fase C: pago — solo si hay habitaciones disponibles --}}
+                        <div id="extFaseC" class="mt-16" style="display:none;">
+
+                            <div class="paso4-fila ext-total-fila">
+                                <span class="paso4-fila-label ext-total-label">Total extensión</span>
+                                <strong id="extMontoTotal" class="ext-total-monto"></strong>
                             </div>
-    
+
                             <div class="campo-grupo">
                                 <label>Método de Pago</label>
                                 <div class="campo-select">
                                     <i class="bi bi-wallet2 campo-icono"></i>
-                                    <select id="extMetodoId">
+                                    <select id="extMetodoId" onchange="window.onCambioMetodoExtension()">
                                         <option value="">Seleccionar...</option>
                                         @foreach($metodosPago as $metodo)
-                                            <option value="{{ $metodo->id }}">
+                                            <option value="{{ $metodo->id }}" data-nombre="{{ $metodo->nombre }}">
                                                 {{ ucfirst($metodo->nombre) }}
                                             </option>
                                         @endforeach
                                     </select>
                                 </div>
-                                <div id="extErrorMetodo" style="display:none; color:#dc3545;
-                                    font-size:0.78rem; margin-top:4px;">
+                                <small id="extErrorMetodo" class="campo-error" style="display:none;">
                                     Seleccione un método de pago.
-                                </div>
+                                </small>
                             </div>
-    
+
+                            <div class="campo-grupo" id="extGrupoNumeroOperacion" style="display:none;">
+                                <label>Número de operación</label>
+                                <div class="campo-input">
+                                    <i class="bi bi-hash campo-icono"></i>
+                                    <input type="text" id="extNumeroOperacion" maxlength="30"
+                                        placeholder="Ej: 000123456789" oninput="window.validarNumeroOperacionExtension()">
+                                </div>
+                                <small id="extErrorNumeroOperacion" class="campo-error" style="display:none;">
+                                    Ingrese el número de operación.
+                                </small>
+                            </div>
+
                         </div>
-    
+
                     </div>
-    
+
                 </div>
-    
+
                 <div class="modal-footer">
                     <button type="button" class="btn-secundario" data-bs-dismiss="modal">
                         Cancelar
                     </button>
                     <button type="button" class="btn-primario" id="extBtnConfirmar"
                         style="display:none;" onclick="window.extConfirmar()">
-                        <i class="bi bi-check-lg"></i> Confirmar Extensión
+                        </i> Confirmar Extensión
                     </button>
                 </div>
-    
+
             </div>
         </div>
     </div>
 
-    <!-- MODAL FINALIZAR -->
+
+    {{-- Modal: finalizar / check-out (datos cargados por JS: finalizarReserva) --}}
     <div class="modal fade" id="modalFinalizar" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered" style="max-width:480px;">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-angosto">
             <div class="modal-content modal-california">
                 <div class="modal-header">
                     <h5 class="modal-titulo">
@@ -1094,24 +1157,18 @@
                         <i class="bi bi-x-lg"></i>
                     </button>
                 </div>
-    
+
                 <div class="modal-body">
-    
-                    <!-- CARGANDO -->
+
                     <div id="finCargando" class="paso2-estado">
                         <i class="bi bi-arrow-repeat"></i>
                         Cargando habitaciones...
                     </div>
-    
-                    <!-- CONTENIDO -->
+
                     <div id="finContenido" style="display:none;">
-    
-                        <!-- Toggle masivo -->
-                        <div style="display:flex; align-items:center; gap:10px;
-                            padding:10px 12px; background:var(--fondo-secundario);
-                            border-radius:8px; margin-bottom:14px;">
-                            <span style="font-size:0.85rem; font-weight:600;
-                                color:var(--gris-texto); flex:1;">
+
+                        <div class="filtros-acciones fin-toggle-masivo">
+                            <span class="paso4-fila-label fin-toggle-masivo-label">
                                 Aplicar a todas:
                             </span>
                             <button type="button" class="btn-estado-hab btn-limpieza-masivo"
@@ -1123,38 +1180,86 @@
                                 <i class="bi bi-wrench"></i> Mantenimiento
                             </button>
                         </div>
-    
-                        <!-- Lista habitaciones -->
-                        <div id="finHabitaciones" class="ver-seccion" style="margin-bottom:0;"></div>
-    
-                        <!-- Aviso falta selección -->
-                        <div id="finAvisoIncompleto" class="aviso-franja franja-horas"
-                            style="display:none; margin-top:12px;">
-                            <i class="bi bi-exclamation-circle"></i>
+
+                        <div id="finHabitaciones" class="ver-seccion mb-16"></div>
+
+                        <div id="finAvisoIncompleto" class="aviso-franja franja-advertencia mb-12"
+                            style="display:none;">
+                            <i class="bi bi-exclamation-triangle-fill"></i>
                             Seleccione el destino de todas las habitaciones.
                         </div>
-    
+
+                        {{-- Comprobante: boleta o factura --}}
+                        <div class="ver-seccion">
+                            <div class="ver-seccion-titulo">
+                                <i class="bi bi-receipt"></i> Comprobante
+                            </div>
+
+                            <div class="fin-comprobante-opciones">
+                                <button type="button" class="btn-estado-hab fin-comprobante-btn" id="finBtnBoleta"
+                                    onclick="window.finSeleccionarComprobante('boleta')">
+                                    <i class="bi bi-receipt"></i> Boleta
+                                </button>
+                                <button type="button" class="btn-estado-hab fin-comprobante-btn" id="finBtnFactura"
+                                    onclick="window.finSeleccionarComprobante('factura')">
+                                    <i class="bi bi-file-earmark-text"></i> Factura
+                                </button>
+                            </div>
+
+                            <div id="finInfoBoleta" class="aviso-franja franja-info" style="display:none;"></div>
+
+                            <div id="finGrupoFactura" style="display:none;">
+                                <div class="campo-grupo">
+                                    <label>RUC</label>
+                                    <div class="campo-input">
+                                        <i class="bi bi-building campo-icono"></i>
+                                        <input type="text" id="finRuc" maxlength="11" inputmode="numeric"
+                                            placeholder="20123456789" oninput="window.finValidarRuc()">
+                                    </div>
+                                    <small id="finErrorRuc" class="campo-error" style="display:none;">
+                                        Ingrese un RUC válido (11 dígitos).
+                                    </small>
+                                </div>
+                                <div class="campo-grupo">
+                                    <label>Razón Social</label>
+                                    <div class="campo-input">
+                                        <i class="bi bi-signpost campo-icono"></i>
+                                        <input type="text" id="finRazonSocial" maxlength="150"
+                                            placeholder="Nombre de la empresa" oninput="window.finValidarRazonSocial()">
+                                    </div>
+                                    <small id="finErrorRazonSocial" class="campo-error" style="display:none;">
+                                        Ingrese la razón social.
+                                    </small>
+                                </div>
+                            </div>
+
+                            <small id="finErrorComprobante" class="campo-error" style="display:none;">
+                                Seleccione el tipo de comprobante.
+                            </small>
+                        </div>
+
                     </div>
-    
+
                 </div>
-    
+
                 <div class="modal-footer">
                     <button type="button" class="btn-secundario" data-bs-dismiss="modal">
                         Cancelar
                     </button>
                     <button type="button" class="btn-primario" id="finBtnConfirmar"
                         style="display:none;" onclick="window.finConfirmar()">
-                        <i class="bi bi-check-circle"></i> Confirmar Check-out
+                        </i> Confirmar Check-out
                     </button>
                 </div>
-    
+
             </div>
         </div>
     </div>
-    
-    <!-- MODAL CANCELAR -->
+
+
+    {{-- Modal: cancelar (datos cargados por JS: cancelarReserva) --}}
     <div class="modal fade" id="modalCancelar" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered" style="max-width:420px;">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-angosto">
             <div class="modal-content modal-california">
                 <div class="modal-header">
                     <h5 class="modal-titulo">
@@ -1166,33 +1271,90 @@
                     </button>
                 </div>
                 <div class="modal-body">
-                    <div class="aviso-franja franja-horas">
-                        <i class="bi bi-exclamation-triangle-fill"></i>
-                        Esta acción no se puede deshacer. Los pagos registrados
-                        <strong>no serán devueltos</strong> automáticamente.
+
+                    <div class="aviso-franja franja-peligro">
+                        <i class="bi bi-exclamation-octagon-fill"></i>
+                        Esta acción no se puede deshacer. Las habitaciones quedarán disponibles
+                        y la reserva pasará a estado <strong>cancelada</strong>.
                     </div>
-                    <p style="margin-top:16px; font-size:0.9rem; color:var(--gris-texto);">
-                        ¿Confirma que desea cancelar esta reserva?
-                    </p>
+
+                    <div id="cancelarCargando" class="paso2-estado mt-16">
+                        <i class="bi bi-arrow-repeat"></i>
+                        Cargando información de pagos...
+                    </div>
+
+                    <div id="cancelarContenido" class="mt-16" style="display:none;">
+
+                        <div class="ver-saldo mb-20">
+                            <div class="ver-saldo-fila">
+                                <span>Total reserva</span>
+                                <strong id="cancelarMontoTotal"></strong>
+                            </div>
+                            <div class="ver-saldo-fila">
+                                <span>Pagado</span>
+                                <strong id="cancelarMontoPagado" class="ver-saldo-fila-exito"></strong>
+                            </div>
+                        </div>
+
+                        <div class="campo-grupo">
+                            <label>
+                                Monto a devolver
+                                <span id="cancelarMaximoLabel" class="label-opcional"></span>
+                            </label>
+                            <div class="campo-input">
+                                <i class="bi bi-cash campo-icono"></i>
+                                <input type="number" id="cancelarMontoDevuelto" step="0.01" min="0"
+                                    placeholder="0.00" oninput="window.cancelValidarMonto()">
+                            </div>
+                            <small id="cancelarErrorMonto" class="campo-error" style="display:none;"></small>
+                        </div>
+
+                        <div id="cancelarRetenidoInfo" class="aviso-franja franja-info mt-4"></div>
+
+                        <div class="campo-grupo mt-16" id="cancelarMetodoGrupo" style="display:none;">
+                            <label>Método de Devolución</label>
+                            <div class="campo-select">
+                                <i class="bi bi-wallet2 campo-icono"></i>
+                                <select id="cancelarMetodoId" onchange="window.onCambioMetodoCancelar()">
+                                    <option value="">Seleccionar...</option>
+                                    @foreach($metodosPago as $metodo)
+                                        <option value="{{ $metodo->id }}" data-nombre="{{ $metodo->nombre }}">
+                                            {{ ucfirst($metodo->nombre) }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <small id="cancelarErrorMetodo" class="campo-error" style="display:none;">
+                                Seleccione un método de devolución.
+                            </small>
+                        </div>
+
+                        <div class="campo-grupo mt-12" id="cancelarGrupoNumeroOperacion" style="display:none;">
+                            <label>Número de operación</label>
+                            <div class="campo-input">
+                                <i class="bi bi-hash campo-icono"></i>
+                                <input type="text" id="cancelarNumeroOperacion" maxlength="30"
+                                    placeholder="Ej: 000123456789" oninput="window.validarNumeroOperacionCancelar()">
+                            </div>
+                            <small id="cancelarErrorNumeroOperacion" class="campo-error" style="display:none;">
+                                Ingrese el número de operación.
+                            </small>
+                        </div>
+
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn-secundario" data-bs-dismiss="modal">
                         No, volver
                     </button>
-                    <button type="button" class="btn-primario"
-                        id="cancelarBtnConfirmar"
-                        style="background:var(--bs-danger, #dc3545); border-color:var(--bs-danger, #dc3545);"
-                        onclick="window.confirmarCancelar()">
-                        <i class="bi bi-x-circle"></i> Sí, cancelar reserva
+                    <button type="button" class="btn-peligro" id="cancelarBtnConfirmar"
+                        style="display:none;" onclick="window.confirmarCancelar()">
+                        </i> Sí, cancelar reserva
                     </button>
                 </div>
             </div>
         </div>
     </div>
-
-    <script>
-        window.tiposEstadiaData = @json($tiposEstadia->keyBy('id'));
-    </script>
 
     @push('scripts')
         @vite('resources/js/reservas/index.js')

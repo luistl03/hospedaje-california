@@ -13,28 +13,24 @@ class Pago extends Model
 
     protected $fillable = [
         'reserva_id',
-        'usuario_id',
-        'extension_id',
         'monto',
         'metodo_id',
         'tipo_id',
+        'fecha_pago',
+        'numero_operacion',
     ];
 
     protected function casts(): array
     {
         return [
-            'monto' => 'decimal:2',
+            'monto'      => 'decimal:2',
+            'fecha_pago' => 'datetime',
         ];
     }
 
     public function reserva()
     {
         return $this->belongsTo(Reserva::class, 'reserva_id');
-    }
-
-    public function usuario()
-    {
-        return $this->belongsTo(User::class, 'usuario_id');
     }
 
     public function metodo()

@@ -4,11 +4,13 @@ namespace App\Http\Controllers\Habitaciones;
 
 use App\Http\Controllers\Controller;
 use App\Models\TipoHabitacion;
+use App\Models\EstadoReserva;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class TipoHabitacionController extends Controller
 {
-
+    // Verifica por AJAX si ya existe un tipo con ese nombre
     public function verificarNombre(Request $request)
     {
         $existe = TipoHabitacion::where('nombre', $request->nombre)
@@ -50,6 +52,17 @@ class TipoHabitacionController extends Controller
         return redirect()->route('habitaciones.index')
             ->with('exito', 'Tipo de habitación creado correctamente.');
     }
+    
+    // Verifica si el tipo tiene habitaciones activas o en uso asignadas
+    private function tieneHabitacionesEnUsoPorTipo(TipoHabitacion $tipoHabitacion): bool
+    {
+        $estadosBloqueo = ['disponible', 'ocupada', 'reservada', 'limpieza'];
+
+        return $tipoHabitacion->habitaciones()
+            ->where('activo', 1)
+            ->whereHas('estado', fn($q) => $q->whereIn('nombre', $estadosBloqueo))
+            ->exists();
+    }
 
     public function update(Request $request, TipoHabitacion $tipoHabitacion)
     {
@@ -72,18 +85,21 @@ class TipoHabitacionController extends Controller
             'max_huespedes.min'     => 'El mínimo permitido es 1.',
         ]);
 
-        // Bloquear inactivación si tiene habitaciones activas o reservadas
         if ((int) $request->activo === 0 && (bool) $tipoHabitacion->activo === true) {
-            $estadosBloqueo = ['disponible', 'ocupada', 'reservada', 'limpieza'];
-
-            $tieneHabitacionesActivas = $tipoHabitacion->habitaciones()
-                ->where('activo', 1)
-                ->whereHas('estado', fn($q) => $q->whereIn('nombre', $estadosBloqueo))
-                ->exists();
-
-            if ($tieneHabitacionesActivas) {
+            if ($this->tieneHabitacionesEnUsoPorTipo($tipoHabitacion)) {
                 return redirect()->route('habitaciones.index')
                     ->with('error', 'No puedes desactivar este tipo porque tiene habitaciones activas o en uso asignadas.');
+            }
+        }
+
+        if ($this->tieneHabitacionesEnUsoPorTipo($tipoHabitacion)) {
+            $cambiaPrecioHora   = (float) $request->precio_hora   !== (float) $tipoHabitacion->precio_hora;
+            $cambiaPrecioNoche  = (float) $request->precio_noche  !== (float) $tipoHabitacion->precio_noche;
+            $cambiaMaxHuespedes = (int)   $request->max_huespedes !== (int)   $tipoHabitacion->max_huespedes;
+
+            if ($cambiaPrecioHora || $cambiaPrecioNoche || $cambiaMaxHuespedes) {
+                return redirect()->route('habitaciones.index')
+                    ->with('error', 'No se puede cambiar el precio ni el máximo de huéspedes: hay habitaciones activas o en uso asignadas a este tipo.');
             }
         }
 

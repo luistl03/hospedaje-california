@@ -2,20 +2,22 @@
 
     <div class="pagina-contenedor">
 
-        <!-- ENCABEZADO -->
+        {{-- Encabezado: título y acciones (gestionar tipos / nueva habitación) --}}
         <div class="pagina-encabezado">
             <h1 class="pagina-titulo">Habitaciones</h1>
-            <div style="display:flex; gap:10px;">
+            <div class="pagina-encabezado-acciones">
+                @if(Auth::user()->rol->nombre === 'gerente')
                 <button class="btn-secundario" data-bs-toggle="modal" data-bs-target="#modalTipos">
                     <i class="bi bi-tags"></i> Gestionar Tipos
                 </button>
+                @endif
                 <button class="btn-primario" data-bs-toggle="modal" data-bs-target="#modalCrear">
                     <i class="bi bi-plus-lg"></i> Nueva Habitación
                 </button>
             </div>
         </div>
 
-        <!-- ALERTAS -->
+        {{-- Alertas de sesión --}}
         @if(session('error'))
             <div class="login-error mb-3">
                 <i class="bi bi-exclamation-circle"></i>
@@ -30,7 +32,7 @@
             </div>
         @endif
 
-        <!-- FILTROS -->
+        {{-- Filtros de búsqueda (AJAX vía buscarHabitaciones) --}}
         <div class="filtros-barra">
 
             <div class="filtro-grupo filtro-grupo-sm">
@@ -98,7 +100,7 @@
 
         </div>
 
-        <!-- TABLA HABITACIONES -->
+        {{-- Tabla de habitaciones, tbody se llena por JS --}}
         <div class="tabla-contenedor">
             <table class="tabla" id="tablaHabitaciones">
                 <thead>
@@ -117,11 +119,14 @@
             </table>
         </div>
 
-        <!-- PAGINACIÓN -->
-        <div id="paginacion" style="display:none; justify-content:center; margin-top:20px; gap:4px; flex-wrap:wrap;"></div>
+        {{-- Paginación generada por JS --}}
+        <div id="paginacion" class="paginacion-contenedor"></div>
+
     </div>
 
-    <!-- MODAL GESTIONAR TIPOS -->
+
+    {{-- Modal: gestionar tipos de habitación --}}
+    @if(Auth::user()->rol->nombre === 'gerente')
     <div class="modal fade" id="modalTipos" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content modal-california">
@@ -133,6 +138,7 @@
                 </div>
                 <div class="modal-body">
 
+                    {{-- Error de validación servidor (al crear tipo) --}}
                     @if(session('error'))
                         <div class="login-error mb-3">
                             <i class="bi bi-exclamation-circle"></i>
@@ -140,7 +146,7 @@
                         </div>
                     @endif
 
-                    <!-- Tabla de tipos -->
+                    {{-- Tabla de tipos existentes --}}
                     <div class="tabla-contenedor mb-4">
                         <table class="tabla">
                             <thead>
@@ -194,16 +200,17 @@
                         </table>
                     </div>
 
-                    <!-- Formulario crear tipo -->
-                    <div style="border-top: 2px solid var(--gris-borde); padding-top: 20px;">
-                        <h6 style="color: var(--azul-marino); font-weight: 700; margin-bottom: 16px;">
+                    {{-- Formulario: nuevo tipo de habitación --}}
+                    <div class="modal-subseccion">
+                        <h6 class="modal-subseccion-titulo">
                             <i class="bi bi-plus-circle"></i> Nuevo Tipo
                         </h6>
                         <form method="POST" action="{{ route('tipos.store') }}" id="formCrearTipo"
                             onsubmit="return validarFormularioTipo('errorNombreTipoCrear')">
                             @csrf
-                            <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;">
+                            <div class="form-grid-3">
 
+                                {{-- Nombre — valida duplicado por AJAX al escribir --}}
                                 <div class="campo-grupo">
                                     <label>Nombre</label>
                                     <div class="campo-input">
@@ -213,7 +220,7 @@
                                             oninput="verificarNombreTipo(this, 'errorNombreTipoCrear')"
                                             required>
                                     </div>
-                                    <small id="errorNombreTipoCrear" style="color:#cc0000; font-size:0.78rem; margin-top:4px; display:block;"></small>
+                                    <small id="errorNombreTipoCrear" class="campo-error"></small>
                                 </div>
 
                                 <div class="campo-grupo">
@@ -233,9 +240,10 @@
                                 </div>
 
                             </div>
-                            
-                            <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 16px;">
 
+                            <div class="form-grid-2">
+
+                                {{-- Máx. Huéspedes — solo enteros positivos --}}
                                 <div class="campo-grupo">
                                     <label>Máx. Huéspedes</label>
                                     <div class="campo-input">
@@ -245,22 +253,20 @@
                                             placeholder="Ej: 2" value="1"
                                             oninput="formatearEnteroPositivo(this)">
                                     </div>
-                                </div>    
-                            
+                                </div>
+
                                 <div class="campo-grupo">
-                                    <label>Descripción <span style="color: var(--gris-texto); font-size:0.75rem;">(opcional)</span></label>
+                                    <label>Descripción <span class="label-opcional">(opcional)</span></label>
                                     <div class="campo-input">
                                         <i class="bi bi-chat-left-text campo-icono"></i>
                                         <input type="text" name="descripcion" placeholder="Descripción del tipo">
                                     </div>
                                 </div>
-                                
+
                             </div>
 
-                            <div style="text-align:right;">
-                                <button type="submit" class="btn-primario">
-                                    <i class="bi bi-plus-lg"></i> Agregar Tipo
-                                </button>
+                            <div class="form-acciones-derecha">
+                                <button type="submit" class="btn-primario">Agregar Tipo</button>
                             </div>
                         </form>
                     </div>
@@ -270,7 +276,8 @@
         </div>
     </div>
 
-    <!-- MODAL EDITAR TIPO -->
+
+    {{-- Modal: editar tipo (datos cargados por JS) --}}
     <div class="modal fade" id="modalEditarTipo" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content modal-california">
@@ -286,9 +293,10 @@
                     @method('PUT')
                     <div class="modal-body">
 
-                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                        <div class="form-grid-2">
 
-                            <div class="campo-grupo" style="grid-column: 1 / -1;">
+                            {{-- Nombre — excluye el propio tipo al verificar duplicado --}}
+                            <div class="campo-grupo form-grid-full">
                                 <label>Nombre</label>
                                 <div class="campo-input">
                                     <i class="bi bi-tag campo-icono"></i>
@@ -297,7 +305,8 @@
                                         oninput="verificarNombreTipo(this, 'errorNombreTipoEditar', document.getElementById('editTipoId').value)"
                                         required>
                                 </div>
-                                <small id="errorNombreTipoEditar" style="color:#cc0000; font-size:0.78rem; margin-top:4px; display:block;"></small>
+                                <small id="errorNombreTipoEditar" class="campo-error"></small>
+                                {{-- ID oculto usado por JS para excluir el tipo actual en la verificación --}}
                                 <input type="hidden" id="editTipoId" value="">
                             </div>
 
@@ -318,7 +327,8 @@
                             </div>
 
                         </div>
-                
+
+                        {{-- Máx. Huéspedes — solo enteros positivos --}}
                         <div class="campo-grupo">
                             <label>Máx. Huéspedes</label>
                             <div class="campo-input">
@@ -328,10 +338,10 @@
                                     placeholder="Ej: 2"
                                     oninput="formatearEnteroPositivo(this)">
                             </div>
-                        </div>                        
+                        </div>
 
                         <div class="campo-grupo">
-                            <label>Descripción <span style="color: var(--gris-texto); font-size:0.75rem;">(opcional)</span></label>
+                            <label>Descripción <span class="label-opcional">(opcional)</span></label>
                             <div class="campo-input">
                                 <i class="bi bi-chat-left-text campo-icono"></i>
                                 <input type="text" name="descripcion" id="editTipoDescripcion" placeholder="Descripción del tipo">
@@ -359,7 +369,8 @@
         </div>
     </div>
 
-    <!-- MODAL ELIMINAR TIPO -->
+
+    {{-- Modal: eliminar tipo (datos cargados por JS) --}}
     <div class="modal fade" id="modalEliminarTipo" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered modal-sm">
             <div class="modal-content modal-california">
@@ -370,9 +381,9 @@
                     </button>
                 </div>
                 <div class="modal-body text-center">
-                    <p style="color: var(--gris-texto); font-size: 0.9rem;">
+                    <p class="modal-eliminar-texto">
                         ¿Estás seguro que deseas eliminar el tipo
-                        <strong id="eliminarTipoNombre" style="color: var(--azul-marino);"></strong>?
+                        <strong id="eliminarTipoNombre" class="modal-eliminar-nombre"></strong>?
                         Esta acción no se puede deshacer.
                     </p>
                 </div>
@@ -387,8 +398,10 @@
             </div>
         </div>
     </div>
+    @endif
 
-    <!-- MODAL CREAR HABITACIÓN -->
+
+    {{-- Modal: nueva habitación --}}
     <div class="modal fade" id="modalCrear" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content modal-california">
@@ -403,6 +416,7 @@
                     @csrf
                     <div class="modal-body">
 
+                        {{-- Número — valida duplicado por AJAX al escribir --}}
                         <div class="campo-grupo">
                             <label>N° Habitación</label>
                             <div class="campo-input">
@@ -412,7 +426,7 @@
                                     oninput="verificarNumero(this, 'errorNumeroCrear')"
                                     min="1" required>
                             </div>
-                            <small id="errorNumeroCrear" style="color:#cc0000; font-size:0.78rem; margin-top:4px; display:block;"></small>
+                            <small id="errorNumeroCrear" class="campo-error"></small>
                         </div>
 
                         <div class="campo-grupo">
@@ -440,7 +454,8 @@
         </div>
     </div>
 
-    <!-- MODAL EDITAR HABITACIÓN -->
+
+    {{-- Modal: editar habitación (datos cargados por JS, aviso de historial cuando aplica) --}}
     <div class="modal fade" id="modalEditar" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content modal-california">
@@ -451,12 +466,16 @@
                     </button>
                 </div>
                 <form method="POST" action="" id="formEditar"
-                    onsubmit="return validarFormularioHabitacion('errorNumeroEditar')">
+                    onsubmit="return window.prepararEnvioEditar('errorNumeroEditar')">
                     @csrf
                     @method('PUT')
                     <div class="modal-body">
+
                         <input type="hidden" id="editNumeroOriginal" value="">
                         <input type="hidden" id="editPaginaActual" name="pagina_actual" value="1">
+
+                        {{-- Aviso cuando la habitación tiene historial de reservas --}}
+                        <div id="editAvisoHistorial" class="aviso-franja franja-info d-none mb-3"></div>
 
                         <div class="campo-grupo">
                             <label>N° Habitación</label>
@@ -466,7 +485,7 @@
                                     oninput="verificarNumero(this, 'errorNumeroEditar', document.getElementById('editNumeroOriginal').value)"
                                     min="1" required>
                             </div>
-                            <small id="errorNumeroEditar" style="color:#cc0000; font-size:0.78rem; margin-top:4px; display:block;"></small>
+                            <small id="errorNumeroEditar" class="campo-error"></small>
                         </div>
 
                         <div class="campo-grupo">
@@ -489,7 +508,9 @@
                                 <i class="bi bi-circle campo-icono"></i>
                                 <select name="estado_id" id="editEstado" required>
                                     @foreach($estados as $estado)
-                                        <option value="{{ $estado->id }}">{{ ucfirst($estado->nombre) }}</option>
+                                        @if(!in_array($estado->nombre, ['ocupada', 'reservada']))
+                                            <option value="{{ $estado->id }}" data-nombre-estado="{{ $estado->nombre }}">{{ ucfirst($estado->nombre) }}</option>
+                                        @endif
                                     @endforeach
                                 </select>
                             </div>
@@ -516,7 +537,8 @@
         </div>
     </div>
 
-    <!-- MODAL ELIMINAR HABITACIÓN -->
+
+    {{-- Modal: editar habitación (datos cargados por JS, aviso de historial cuando aplica) --}}
     <div class="modal fade" id="modalEliminar" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered modal-sm">
             <div class="modal-content modal-california">
@@ -527,9 +549,9 @@
                     </button>
                 </div>
                 <div class="modal-body text-center">
-                    <p style="color: var(--gris-texto); font-size: 0.9rem;">
+                    <p class="modal-eliminar-texto">
                         ¿Estás seguro que deseas eliminar la habitación
-                        <strong id="eliminarNumero" style="color: var(--azul-marino);"></strong>?
+                        <strong id="eliminarNumero" class="modal-eliminar-nombre"></strong>?
                         Esta acción no se puede deshacer.
                     </p>
                 </div>
@@ -545,8 +567,11 @@
         </div>
     </div>
 
+
+    {{-- Datos iniciales para JS: rol y página de retorno --}}
     <script>
         window.paginaRetorno = {{ session('pagina_retorno', 1) }};
+        window.rolUsuario    = "{{ Auth::user()->rol->nombre }}";
     </script>
 
     @push('scripts')

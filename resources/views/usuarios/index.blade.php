@@ -2,7 +2,7 @@
 
     <div class="pagina-contenedor">
 
-        <!-- ENCABEZADO -->
+        {{-- ENCABEZADO — Título de página y botón crear --}}
         <div class="pagina-encabezado">
             <h1 class="pagina-titulo">Usuarios</h1>
             <button class="btn-primario" data-bs-toggle="modal" data-bs-target="#modalCrear">
@@ -10,7 +10,7 @@
             </button>
         </div>
 
-        <!-- ALERTAS -->
+        {{-- ALERTAS — Mensajes de sesión (error / éxito) --}}
         @if(session('error'))
             <div class="login-error mb-3">
                 <i class="bi bi-exclamation-circle"></i>
@@ -25,7 +25,7 @@
             </div>
         @endif
 
-        <!-- TABLA -->
+        {{-- TABLA — Listado de usuarios con scroll vertical --}}
         <div class="tabla-contenedor-scroll">
             <div class="tabla-scroll-inner">
                 <table class="tabla">
@@ -83,21 +83,25 @@
 
     </div>
 
-    <!-- MODAL CREAR -->
+
+    {{-- MODAL CREAR — Formulario para nuevo usuario --}}
     <div class="modal fade" id="modalCrear" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content modal-california">
+
                 <div class="modal-header">
                     <h5 class="modal-titulo"><i class="bi bi-person-plus"></i> Nuevo Usuario</h5>
                     <button type="button" class="btn-cerrar-modal" data-bs-dismiss="modal">
                         <i class="bi bi-x-lg"></i>
                     </button>
                 </div>
+
                 <form method="POST" action="{{ route('usuarios.store') }}" id="formCrear"
                     onsubmit="return validarFormulario('formCrear', 'errorEmailCrear', 'errorPasswordCrear')">
                     @csrf
                     <div class="modal-body">
 
+                        {{-- Error de validación servidor --}}
                         @if($errors->any() && !session('editar'))
                             <div class="login-error mb-3">
                                 <i class="bi bi-exclamation-circle"></i>
@@ -105,6 +109,7 @@
                             </div>
                         @endif
 
+                        {{-- Campo: Nombre --}}
                         <div class="campo-grupo">
                             <label>Nombre completo</label>
                             <div class="campo-input">
@@ -113,6 +118,7 @@
                             </div>
                         </div>
 
+                        {{-- Campo: Email — valida duplicado por AJAX al perder foco --}}
                         <div class="campo-grupo">
                             <label>Correo electrónico</label>
                             <div class="campo-input">
@@ -122,9 +128,10 @@
                                     onblur="verificarEmail(this, 'errorEmailCrear')"
                                     required>
                             </div>
-                            <small id="errorEmailCrear" style="color:#cc0000; font-size:0.78rem; margin-top:4px; display:block;"></small>
+                            <small id="errorEmailCrear" class="campo-error"></small>
                         </div>
 
+                        {{-- Campo: Contraseña — valida longitud en tiempo real --}}
                         <div class="campo-grupo">
                             <label>Contraseña</label>
                             <div class="campo-password">
@@ -137,9 +144,10 @@
                                     <i class="bi bi-eye" id="ojitoCear"></i>
                                 </button>
                             </div>
-                            <small id="errorPasswordCrear" style="color:#cc0000; font-size:0.78rem; margin-top:4px; display:block;"></small>
+                            <small id="errorPasswordCrear" class="campo-error"></small>
                         </div>
 
+                        {{-- Campo: Rol --}}
                         <div class="campo-grupo">
                             <label>Rol</label>
                             <div class="campo-select">
@@ -158,27 +166,34 @@
                         <button type="submit" class="btn-primario">Guardar</button>
                     </div>
                 </form>
+
             </div>
         </div>
     </div>
 
-    <!-- MODAL EDITAR -->
+
+    {{-- MODAL EDITAR — Formulario para editar usuario existente --}}
     <div class="modal fade" id="modalEditar" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content modal-california">
+
                 <div class="modal-header">
                     <h5 class="modal-titulo"><i class="bi bi-pencil-square"></i> Editar Usuario</h5>
                     <button type="button" class="btn-cerrar-modal" data-bs-dismiss="modal">
                         <i class="bi bi-x-lg"></i>
                     </button>
                 </div>
+
                 <form method="POST" action="" id="formEditar"
                     onsubmit="return validarFormulario('formEditar', 'errorEmailEditar', 'errorPasswordEditar')">
                     @csrf
                     @method('PUT')
                     <div class="modal-body">
+
+                        {{-- ID oculto usado por JS para pasar el usuarioId al verificarEmail --}}
                         <input type="hidden" id="editUsuarioId" value="">
 
+                        {{-- Error de validación servidor --}}
                         @if($errors->any() && session('editar'))
                             <div class="login-error mb-3">
                                 <i class="bi bi-exclamation-circle"></i>
@@ -186,6 +201,7 @@
                             </div>
                         @endif
 
+                        {{-- Campo: Nombre --}}
                         <div class="campo-grupo">
                             <label>Nombre completo</label>
                             <div class="campo-input">
@@ -194,6 +210,7 @@
                             </div>
                         </div>
 
+                        {{-- Campo: Email — excluye el propio usuario al verificar duplicado --}}
                         <div class="campo-grupo">
                             <label>Correo electrónico</label>
                             <div class="campo-input {{ $errors->has('email') && session('editar') ? 'error' : '' }}">
@@ -203,11 +220,15 @@
                                     onblur="verificarEmail(this, 'errorEmailEditar', document.getElementById('editUsuarioId').value)"
                                     required>
                             </div>
-                            <small id="errorEmailEditar" style="color:#cc0000; font-size:0.78rem; margin-top:4px; display:block;"></small>
+                            <small id="errorEmailEditar" class="campo-error"></small>
                         </div>
 
+                        {{-- Campo: Contraseña — opcional al editar, si se llena debe cumplir mínimo --}}
                         <div class="campo-grupo">
-                            <label>Nueva contraseña <span style="color: var(--gris-texto); font-size:0.75rem;">(dejar vacío para no cambiar)</span></label>
+                            <label>
+                                Nueva contraseña
+                                <span class="label-opcional">(dejar vacío para no cambiar)</span>
+                            </label>
                             <div class="campo-password">
                                 <i class="bi bi-lock campo-icono"></i>
                                 <input type="password" name="password" id="editPassword"
@@ -217,9 +238,10 @@
                                     <i class="bi bi-eye" id="ojitoEdit"></i>
                                 </button>
                             </div>
-                            <small id="errorPasswordEditar" style="color:#cc0000; font-size:0.78rem; margin-top:4px; display:block;"></small>
+                            <small id="errorPasswordEditar" class="campo-error"></small>
                         </div>
 
+                        {{-- Campo: Rol --}}
                         <div class="campo-grupo">
                             <label>Rol</label>
                             <div class="campo-select">
@@ -232,6 +254,7 @@
                             </div>
                         </div>
 
+                        {{-- Campo: Estado --}}
                         <div class="campo-grupo">
                             <label>Estado</label>
                             <div class="campo-select">
@@ -249,27 +272,32 @@
                         <button type="submit" class="btn-primario">Actualizar</button>
                     </div>
                 </form>
+
             </div>
         </div>
     </div>
 
-    <!-- MODAL ELIMINAR -->
+
+    {{-- MODAL ELIMINAR — Confirmación de eliminación --}}
     <div class="modal fade" id="modalEliminar" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered modal-sm">
             <div class="modal-content modal-california">
+
                 <div class="modal-header">
                     <h5 class="modal-titulo"><i class="bi bi-exclamation-triangle"></i> Eliminar Usuario</h5>
                     <button type="button" class="btn-cerrar-modal" data-bs-dismiss="modal">
                         <i class="bi bi-x-lg"></i>
                     </button>
                 </div>
+
                 <div class="modal-body text-center">
-                    <p style="color: var(--gris-texto); font-size: 0.9rem;">
+                    <p class="modal-eliminar-texto">
                         ¿Estás seguro que deseas eliminar al usuario
-                        <strong id="eliminarNombre" style="color: var(--azul-marino);"></strong>?
+                        <strong id="eliminarNombre" class="modal-eliminar-nombre"></strong>?
                         Esta acción no se puede deshacer.
                     </p>
                 </div>
+
                 <div class="modal-footer justify-content-center">
                     <button type="button" class="btn-secundario" data-bs-dismiss="modal">Cancelar</button>
                     <form method="POST" id="formEliminar">
@@ -278,9 +306,11 @@
                         <button type="submit" class="btn-peligro">Eliminar</button>
                     </form>
                 </div>
+
             </div>
         </div>
     </div>
+
 
     @push('scripts')
         @vite('resources/js/usuarios/index.js')
