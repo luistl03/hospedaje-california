@@ -6,8 +6,11 @@ use App\Http\Controllers\Usuarios\UsuarioController;
 use App\Http\Controllers\Habitaciones\HabitacionController;
 use App\Http\Controllers\Habitaciones\TipoHabitacionController;
 use App\Http\Controllers\Huespedes\HuespedController;
+use App\Http\Controllers\Sugerencias\SugerenciaController;
 use App\Http\Controllers\Reservas\ReservaController;
 use App\Http\Controllers\Reportes\ReporteController;
+use App\Http\Controllers\Predicciones\PrediccionController;
+
 
 require __DIR__.'/auth.php';
 
@@ -41,6 +44,10 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/huespedes/buscar', [HuespedController::class, 'buscar'])->name('huespedes.buscar');
     Route::put('/huespedes/{huesped}', [HuespedController::class, 'update'])->name('huespedes.update');
     Route::delete('/huespedes/{huesped}', [HuespedController::class, 'destroy'])->name('huespedes.destroy');
+    Route::post('/huespedes/crear-rapido', [HuespedController::class, 'crearRapido'])->name('huespedes.crearRapido');
+
+    //Sugerencias
+    Route::post('/sugerencias', [SugerenciaController::class, 'store'])->name('sugerencias.store');
 
     // Reservas
     Route::get('/reservas', [ReservaController::class, 'index'])->name('reservas.index');
@@ -90,4 +97,8 @@ Route::middleware(['auth', 'solo.gerente'])->group(function () {
     // Reportes
     Route::get('/reportes', [ReporteController::class, 'index'])->name('reportes.index');
     Route::get('/reportes/datos', [ReporteController::class, 'datos'])->name('reportes.datos');
+
+    // Predicciones
+    Route::get('/predicciones', [PrediccionController::class, 'index'])->name('predicciones.index');
+    Route::get('/predicciones/datos', [PrediccionController::class, 'datos'])->name('predicciones.datos');
 });

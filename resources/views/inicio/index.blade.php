@@ -164,6 +164,29 @@
                             @endforelse
                         </div>
 
+                        <div class="evento-seccion">
+                            <div class="evento-seccion-titulo evento-sugerencia">
+                                <span><i class="bi bi-chat-square-text"></i> Sugerencias de hoy</span>
+                                <span class="badge-contador-dorado">{{ $sugerenciasHoy->count() }}</span>
+                            </div>
+                            @forelse($sugerenciasHoy as $s)
+                                <div class="ver-extension">
+                                    <div class="ver-extension-header">
+                                        <span>
+                                            {{ $s['nombre'] ?? $s['num_doc'] }}
+                                            <span class="ver-tag">{{ $s['num_doc'] }}</span>
+                                        </span>
+                                        <span>{{ $s['hora'] }}</span>
+                                    </div>
+                                    <div class="ver-extension-habs">
+                                        {{ $s['comentario'] }}
+                                    </div>
+                                </div>
+                            @empty
+                                <p class="evento-vacio">No se registraron sugerencias hoy.</p>
+                            @endforelse
+                        </div>
+
                     </div>
                 </div>
 

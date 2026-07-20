@@ -1,8 +1,3 @@
-// ============================================================
-//  REPORTES — index.js
-//  Filtro de rango + KPIs + gráficos (Chart.js) + rankings.
-// ============================================================
-
 let chartIngresos = null;
 let chartMetodos  = null;
 
@@ -12,28 +7,35 @@ function formatoMoneda(valor) {
     return `S/ ${Number(valor).toFixed(2)}`;
 }
 
+function fechaLocalISO(date) {
+    const anio = date.getFullYear();
+    const mes  = String(date.getMonth() + 1).padStart(2, '0');
+    const dia  = String(date.getDate()).padStart(2, '0');
+    return `${anio}-${mes}-${dia}`;
+}
+
 // ── Presets rápidos de rango ──
 window.aplicarPreset = function (dias) {
     const hasta = new Date();
     const desde = new Date();
     desde.setDate(desde.getDate() - (dias - 1));
-    document.getElementById('repDesde').value = desde.toISOString().slice(0, 10);
-    document.getElementById('repHasta').value = hasta.toISOString().slice(0, 10);
+    document.getElementById('repDesde').value = fechaLocalISO(desde);
+    document.getElementById('repHasta').value = fechaLocalISO(hasta);
     window.cargarReportes();
 };
 
 window.aplicarPresetMes = function () {
     const hoy = new Date();
     const desde = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
-    document.getElementById('repDesde').value = desde.toISOString().slice(0, 10);
-    document.getElementById('repHasta').value = hoy.toISOString().slice(0, 10);
+    document.getElementById('repDesde').value = fechaLocalISO(desde);
+    document.getElementById('repHasta').value = fechaLocalISO(hoy);
     window.cargarReportes();
 };
 
 // ── Validación de rango de fechas ──
 function validarRangoFechas(desde, hasta) {
     const errorEl = document.getElementById('repFechaError');
-    const hoy = new Date().toISOString().slice(0, 10);
+    const hoy = fechaLocalISO(new Date());
 
     let mensaje = '';
 
@@ -174,6 +176,64 @@ function pintarMetricas(data) {
                     ${formatoMoneda(h.gasto)}
                     <span class="ver-fila-valor-secundario">(${h.reservas} reservas)</span>
                 </span>
+            </div>`).join('');
+
+    // Tabla: ingresos por tipo de pago
+    const tipoPagoEl = document.getElementById('tablaTipoPago');
+    const nombresTipoPago = {
+        'adelanto':          'Adelanto',
+        'pago final':        'Pago final',
+        'extension':         'Extensión',
+        'ingreso temprano':  'Ingreso temprano',
+    };
+    tipoPagoEl.innerHTML = data.ingresos_por_tipo_pago.length === 0
+        ? '<p class="evento-vacio">Sin datos en este rango.</p>'
+        : data.ingresos_por_tipo_pago.map(t => `
+            <div class="ver-fila">
+                <span class="ver-fila-label">${nombresTipoPago[t.tipo] ?? t.tipo}</span>
+                <span class="ver-fila-valor">${formatoMoneda(t.monto)}</span>
+            </div>`).join('');
+
+    // Tabla: distribución de estadía (horas vs noches)
+    const distEl = document.getElementById('tablaDistribucionEstadia');
+    const totalEstadia = data.distribucion_estadia.horas + data.distribucion_estadia.noches;
+    if (totalEstadia === 0) {
+        distEl.innerHTML = '<p class="evento-vacio">Sin datos en este rango.</p>';
+    } else {
+        const pctHoras  = Math.round((data.distribucion_estadia.horas  / totalEstadia) * 100);
+        const pctNoches = Math.round((data.distribucion_estadia.noches / totalEstadia) * 100);
+        distEl.innerHTML = `
+            <div class="ver-fila">
+                <span class="ver-fila-label"><i class="bi bi-clock"></i> Por horas</span>
+                <span class="ver-fila-valor">
+                    ${data.distribucion_estadia.horas}
+                    <span class="ver-fila-valor-secundario">(${pctHoras}%)</span>
+                </span>
+            </div>
+            <div class="ver-fila">
+                <span class="ver-fila-label"><i class="bi bi-moon"></i> Por noches</span>
+                <span class="ver-fila-valor">
+                    ${data.distribucion_estadia.noches}
+                    <span class="ver-fila-valor-secundario">(${pctNoches}%)</span>
+                </span>
+            </div>`;
+    }
+
+    // Tabla: sugerencias registradas
+    const sugerenciasEl = document.getElementById('tablaSugerencias');
+    sugerenciasEl.innerHTML = data.sugerencias.length === 0
+        ? '<p class="evento-vacio">No se registraron sugerencias en este rango.</p>'
+        : data.sugerencias.map(s => `
+            <div class="ver-extension">
+                <div class="ver-extension-header">
+                    <span>
+                        ${s.nombre ?? s.num_doc} <span class="ver-tag">${s.num_doc}</span>
+                    </span>
+                    <span>${s.fecha}</span>
+                </div>
+                <div class="ver-extension-habs">
+                    ${s.comentario}
+                </div>
             </div>`).join('');
 }
 

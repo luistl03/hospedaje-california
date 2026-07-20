@@ -75,12 +75,17 @@
                     <div class="sidebar-separador"></div>
 
                     <a href="{{ route('reportes.index') }}"
-                       class="{{ request()->routeIs('reportes.index') ? 'activo' : '' }}">
+                    class="{{ request()->routeIs('reportes.index') ? 'activo' : '' }}">
                         <i class="bi bi-bar-chart"></i> Reportes
                     </a>
 
+                    <a href="{{ route('predicciones.index') }}"
+                    class="{{ request()->routeIs('predicciones.index') ? 'activo' : '' }}">
+                        <i class="bi bi-graph-up-arrow"></i> Predicciones
+                    </a>
+
                     <a href="{{ route('usuarios.index') }}"
-                       class="{{ request()->routeIs('usuarios.index') ? 'activo' : '' }}">
+                    class="{{ request()->routeIs('usuarios.index') ? 'activo' : '' }}">
                         <i class="bi bi-person-gear"></i> Usuarios
                     </a>
                 @endif

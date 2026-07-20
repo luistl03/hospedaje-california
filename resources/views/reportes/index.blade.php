@@ -97,6 +97,27 @@
                 </div>
             </div>
 
+            <div class="tabla-contenedor dashboard-panel">
+                <div class="dashboard-panel-titulo"><i class="bi bi-wallet2"></i> Ingresos por tipo de pago</div>
+                <div class="dashboard-panel-body">
+                    <div id="tablaTipoPago"></div>
+                </div>
+            </div>
+
+            <div class="tabla-contenedor dashboard-panel">
+                <div class="dashboard-panel-titulo"><i class="bi bi-hourglass-split"></i> Distribución de estadía</div>
+                <div class="dashboard-panel-body">
+                    <div id="tablaDistribucionEstadia"></div>
+                </div>
+            </div>
+
+            <div class="tabla-contenedor dashboard-panel">
+                <div class="dashboard-panel-titulo"><i class="bi bi-chat-square-text"></i> Sugerencias registradas</div>
+                <div class="dashboard-panel-body">
+                    <div id="tablaSugerencias"></div>
+                </div>
+            </div>
+
         </div>
 
     </div>

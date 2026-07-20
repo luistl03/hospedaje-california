@@ -72,9 +72,9 @@ function ocultarAviso(elemento) {
 }
 
 
-// ── 03. MODAL CREAR — PASO 1: DATOS GENERALES ──
+// ── 03. MODAL CREAR — PASO 2: DATOS GENERALES (fechas/tipo de estadía) ──
 
-// Reinicia el Paso 1 al cambiar el tipo de estadía
+// Reinicia el paso de Datos al cambiar el tipo de estadía
 window.actualizarPaso1 = function () {
     const fechaEntradaInput = document.getElementById('fechaEntrada');
     const fechaSalidaInput  = document.getElementById('fechaSalida');
@@ -238,6 +238,7 @@ function mostrarAvisoFranja(franja) {
 
 
 // ── 04. MODAL CREAR — NAVEGACIÓN DEL WIZARD ──
+// Nuevo orden: Paso 1 = Huéspedes · Paso 2 = Datos · Paso 3 = Habitaciones · Paso 4 = Pagos
 
 // Avanza/retrocede entre pasos, valida el paso actual y dispara carga de datos
 window.cambiarPaso = function (direccion) {
@@ -256,7 +257,8 @@ window.cambiarPaso = function (direccion) {
 
     document.getElementById('btnAnterior').style.display = pasoActual === 1 ? 'none' : 'inline-flex';
 
-    if (pasoActual === 2) cargarHabitacionesDisponiblesIfNeeded();
+    // Paso 3 = Habitaciones: se carga el mapa de disponibilidad al entrar
+    if (pasoActual === 3) cargarHabitacionesDisponiblesIfNeeded();
 
     if (pasoActual === 4) {
         window.inicializarPaso4();
@@ -268,7 +270,26 @@ window.cambiarPaso = function (direccion) {
     }
 };
 
+// Paso 1 = Huéspedes. Sin límite de capacidad aquí (se controla en el paso de Habitaciones).
 function validarPaso1() {
+    const errorEl = document.getElementById('paso3ErrorGeneral');
+
+    if (huespedesSeleccionados.length === 0) {
+        errorEl.textContent   = 'Agregue al menos un huésped.';
+        errorEl.style.display = 'block';
+        return false;
+    }
+    if (!huespedesSeleccionados.some(h => h.principal)) {
+        errorEl.textContent   = 'Debe marcar un huésped como principal.';
+        errorEl.style.display = 'block';
+        return false;
+    }
+    errorEl.style.display = 'none';
+    return true;
+}
+
+// Paso 2 = Datos (tipo de estadía y fechas)
+function validarPaso2() {
     const tipo    = document.getElementById('tipoEstadiaId').value;
     const entrada = document.getElementById('fechaEntrada').value;
     const salida  = document.getElementById('fechaSalida').value;
@@ -282,35 +303,21 @@ function validarPaso1() {
     return true;
 }
 
-function validarPaso2() {
+// Paso 3 = Habitaciones. Aquí sí se valida la capacidad contra los huéspedes ya agregados.
+function validarPaso3() {
     const errorEl = document.getElementById('paso2ErrorSeleccion');
     if (habitacionesSeleccionadas.length === 0) {
         errorEl.style.display = 'block';
         return false;
     }
     errorEl.style.display = 'none';
-    return true;
-}
 
-function validarPaso3() {
-    const errorEl = document.getElementById('paso3ErrorGeneral');
-
-    if (huespedesSeleccionados.length === 0) {
-        errorEl.textContent   = 'Agregue al menos un huésped.';
-        errorEl.style.display = 'block';
-        return false;
-    }
     if (maxHuespedesPermitido > 0 && huespedesSeleccionados.length > maxHuespedesPermitido) {
-        errorEl.textContent   = `Excede el límite de ${maxHuespedesPermitido} huésped(es) para las habitaciones seleccionadas.`;
-        errorEl.style.display = 'block';
+        mostrarAlerta('error',
+            `La cantidad de huéspedes agregados (${huespedesSeleccionados.length}) supera la capacidad de las habitaciones seleccionadas (${maxHuespedesPermitido}).`);
         return false;
     }
-    if (!huespedesSeleccionados.some(h => h.principal)) {
-        errorEl.textContent   = 'Debe marcar un huésped como principal.';
-        errorEl.style.display = 'block';
-        return false;
-    }
-    errorEl.style.display = 'none';
+
     return true;
 }
 
@@ -493,7 +500,7 @@ function renderizarPaginacion(actual, total) {
 }
 
 
-// ── 07. MODAL CREAR — PASO 2: HABITACIONES ──
+// ── 07. MODAL CREAR — PASO 3: HABITACIONES ──
 let habitacionesSeleccionadas = [];
 let habitacionesData          = {};
 let habitacionesCargadasPara  = '';
@@ -526,6 +533,7 @@ function cargarHabitacionesDisponibles() {
     document.getElementById('paso2Mapa').style.display     = 'none';
     document.getElementById('paso2Vacio').style.display    = 'none';
     document.getElementById('paso2Resumen').style.display  = 'none';
+    ocultarAviso(document.getElementById('paso2AvisoCapacidad'));
 
     const params = new URLSearchParams({
         fecha_entrada:   document.getElementById('fechaEntrada').value,
@@ -608,18 +616,7 @@ window.toggleHabitacion = function (numero) {
         (sum, n) => sum + (habitacionesData[n]?.max_huespedes ?? 1), 0
     );
 
-    if (maxHuespedesPermitido > 0 && huespedesSeleccionados.length > maxHuespedesPermitido) {
-        const excedente = huespedesSeleccionados.length - maxHuespedesPermitido;
-        huespedesSeleccionados = huespedesSeleccionados.slice(0, maxHuespedesPermitido);
-
-        if (typeof renderizarSeleccionados === 'function') {
-            renderizarSeleccionados();
-        }
-
-        mostrarAlerta('error',
-            `Se quitaron ${excedente} huésped${excedente !== 1 ? 'es' : ''} porque las habitaciones seleccionadas ya no soportan ese límite.`
-        );
-    }
+    actualizarAvisoCapacidadHuespedes();
 };
 
 // Calcula y muestra el resumen de habitaciones seleccionadas + total
@@ -628,6 +625,7 @@ function actualizarResumenPaso2() {
 
     if (habitacionesSeleccionadas.length === 0) {
         resumen.style.display = 'none';
+        ocultarAviso(document.getElementById('paso2AvisoCapacidad'));
         return;
     }
 
@@ -672,8 +670,31 @@ function actualizarResumenPaso2() {
     resumen.style.display = 'block';
 }
 
+// Recordatorio de capacidad: compara huéspedes ya agregados (paso 1) contra la capacidad
+// de las habitaciones marcadas en este paso, con color según el estado.
+function actualizarAvisoCapacidadHuespedes() {
+    const aviso = document.getElementById('paso2AvisoCapacidad');
+    if (!aviso) return;
 
-// ── 08. MODAL CREAR — PASO 3: HUÉSPEDES ──
+    if (habitacionesSeleccionadas.length === 0) {
+        ocultarAviso(aviso);
+        return;
+    }
+
+    const totalHuespedes = huespedesSeleccionados.length;
+    const capacidad      = maxHuespedesPermitido;
+
+    if (totalHuespedes <= capacidad) {
+        pintarAviso(aviso, 'exito',
+            `Huéspedes ingresados: <strong>${totalHuespedes}</strong> — la capacidad seleccionada (${capacidad}) es suficiente.`);
+    } else {
+        pintarAviso(aviso, 'advertencia',
+            `Huéspedes ingresados: <strong>${totalHuespedes}</strong> — supera la capacidad seleccionada (${capacidad}).`);
+    }
+}
+
+
+// ── 08. MODAL CREAR — PASO 1: HUÉSPEDES ──
 let huespedesSeleccionados = [];
 let maxHuespedesPermitido  = 0;
 
@@ -707,16 +728,20 @@ window.buscarHuesped = function () {
             const listaEl = document.getElementById('paso3ListaResultados');
             const resEl   = document.getElementById('paso3Resultados');
             const vacioEl = document.getElementById('paso3Vacio');
+            const btnCrearNuevo = document.getElementById('paso3BtnCrearNuevo');
 
             listaEl.innerHTML = '';
 
             if (!resp.data || resp.data.length === 0) {
                 resEl.style.display   = 'none';
                 vacioEl.style.display = 'block';
+                btnCrearNuevo.style.display = 'inline-flex';
                 return;
             }
 
             vacioEl.style.display = 'none';
+            btnCrearNuevo.style.display = 'none';
+            window.ocultarCrearHuespedInline();
             resEl.style.display   = 'block';
 
             resp.data.forEach(h => {
@@ -753,7 +778,7 @@ function escaparTexto(str) {
     return String(str).replace(/'/g, "\\'").replace(/"/g, '&quot;');
 }
 
-// Agrega un huésped a la lista de seleccionados del Paso 3
+// Agrega un huésped a la lista de seleccionados del Paso 1
 window.agregarHuesped = function (numDoc, nombre, telefono) {
     if (huespedesSeleccionados.some(h => h.numDoc === numDoc)) return;
     if (maxHuespedesPermitido > 0 && huespedesSeleccionados.length >= maxHuespedesPermitido) return;
@@ -763,6 +788,7 @@ window.agregarHuesped = function (numDoc, nombre, telefono) {
 
     renderizarSeleccionados();
     actualizarContadorHuespedes();
+    actualizarAvisoCapacidadHuespedes();
 
     const lista = document.getElementById('paso3ListaResultados');
     lista.querySelectorAll('button').forEach(btn => {
@@ -774,7 +800,7 @@ window.agregarHuesped = function (numDoc, nombre, telefono) {
     });
 };
 
-// Quita un huésped de la lista de seleccionados del Paso 3
+// Quita un huésped de la lista de seleccionados del Paso 1
 window.quitarHuesped = function (numDoc) {
     const eraPrincipal = huespedesSeleccionados.find(h => h.numDoc === numDoc)?.principal;
     huespedesSeleccionados = huespedesSeleccionados.filter(h => h.numDoc !== numDoc);
@@ -785,6 +811,7 @@ window.quitarHuesped = function (numDoc) {
 
     renderizarSeleccionados();
     actualizarContadorHuespedes();
+    actualizarAvisoCapacidadHuespedes();
 
     const lista = document.getElementById('paso3ListaResultados');
     lista.querySelectorAll('button').forEach(btn => {
@@ -808,6 +835,8 @@ window.limpiarBuscadorHuesped = function () {
     document.getElementById('paso3ListaResultados').innerHTML = '';
     document.getElementById('paso3Resultados').style.display  = 'none';
     document.getElementById('paso3Vacio').style.display       = 'none';
+    document.getElementById('paso3BtnCrearNuevo').style.display = 'none';
+    window.ocultarCrearHuespedInline();
 };
 
 // Actualiza el badge contador y el aviso de límite alcanzado
@@ -839,6 +868,7 @@ function renderizarSeleccionados() {
 
     contenedor.innerHTML = '';
     actualizarContadorHuespedes();
+    actualizarEstadoSugerencia();
 
     if (huespedesSeleccionados.length === 0) {
         seccion.style.display = 'none';
@@ -870,6 +900,265 @@ function renderizarSeleccionados() {
         contenedor.appendChild(item);
     });
 }
+
+// Muestra/oculta el bloque de sugerencia y refresca su info al abrir
+window.toggleSugerencia = function () {
+    const contenedor = document.getElementById('sugerenciaContenedor');
+    const abierto     = contenedor.style.display !== 'none';
+
+    contenedor.style.display = abierto ? 'none' : 'block';
+
+    if (!abierto) {
+        actualizarInfoSugerencia();
+    }
+};
+
+// Actualiza el aviso "Se guardará para..." y habilita/deshabilita el botón de sugerencia
+function actualizarInfoSugerencia() {
+    const info = document.getElementById('sugerenciaInfo');
+    const btn  = document.getElementById('sugerenciaBtnGuardar');
+    const principal = huespedesSeleccionados.find(h => h.principal);
+
+    if (!principal) {
+        ocultarAviso(info);
+        btn.disabled = true;
+        return;
+    }
+
+    pintarAviso(info, 'info', `Se guardará para: <strong>${principal.nombre}</strong> (${principal.numDoc})`);
+    btn.disabled = false;
+}
+
+// Habilita/deshabilita el botón toggle según haya o no huéspedes,
+// y cierra/resetea el panel si la lista se queda en 0.
+function actualizarEstadoSugerencia() {
+    const btnToggle  = document.getElementById('sugerenciaBtnToggle');
+    const contenedor = document.getElementById('sugerenciaContenedor');
+
+    if (huespedesSeleccionados.length === 0) {
+        btnToggle.disabled = true;
+
+        if (contenedor.style.display !== 'none') {
+            contenedor.style.display = 'none';
+            document.getElementById('sugerenciaComentario').value               = '';
+            document.getElementById('sugerenciaInfo').style.display             = 'none';
+            document.getElementById('sugerenciaErrorComentario').style.display  = 'none';
+            document.getElementById('sugerenciaBtnGuardar').disabled            = true;
+        }
+    } else {
+        btnToggle.disabled = false;
+    }
+}
+
+// Limpia el error de comentario vacío mientras el usuario escribe
+window.validarComentarioSugerencia = function () {
+    const valor = document.getElementById('sugerenciaComentario').value.trim();
+    if (valor) {
+        document.getElementById('sugerenciaErrorComentario').style.display = 'none';
+    }
+};
+
+// Envía la sugerencia/comentario a la tabla independiente (no afecta el flujo de la reserva)
+window.guardarSugerencia = function () {
+    const principal  = huespedesSeleccionados.find(h => h.principal);
+    const comentario = document.getElementById('sugerenciaComentario').value.trim();
+    const errorEl    = document.getElementById('sugerenciaErrorComentario');
+
+    if (!principal) return;
+
+    if (!comentario) {
+        errorEl.style.display = 'block';
+        return;
+    }
+    errorEl.style.display = 'none';
+
+    const btn = document.getElementById('sugerenciaBtnGuardar');
+    btn.disabled  = true;
+    btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Guardando...';
+
+    fetch('/sugerencias', {
+        method: 'POST',
+        headers: {
+            'Content-Type':  'application/json',
+            'Accept':        'application/json',
+            'X-CSRF-TOKEN':  document.querySelector('meta[name="csrf-token"]').content,
+        },
+        body: JSON.stringify({ num_doc: principal.numDoc, comentario }),
+    })
+        .then(res => res.json())
+        .then(resp => {
+            btn.innerHTML = '<i class="bi bi-save"></i> Guardar sugerencia';
+            btn.disabled  = false;
+
+            if (resp.error) {
+                mostrarAlerta('error', resp.error);
+                return;
+            }
+
+            document.getElementById('sugerenciaComentario').value = '';
+            mostrarAlerta('exito', 'Sugerencia guardada correctamente.');
+        })
+        .catch(err => {
+            console.error('Error guardando sugerencia:', err);
+            mostrarAlerta('error', 'Ocurrió un error al guardar la sugerencia.');
+            btn.innerHTML = '<i class="bi bi-save"></i> Guardar sugerencia';
+            btn.disabled  = false;
+        });
+};
+
+// ── 08b. MODAL CREAR — PASO 1: CREACIÓN RÁPIDA DE HUÉSPED (cuando la búsqueda no arroja resultados) ──
+
+// Muestra el mini-formulario y precarga el N° de documento buscado (si se buscó por documento)
+window.mostrarCrearHuespedInline = function () {
+    const numDocBuscado = document.getElementById('paso3NumDoc').value.trim();
+    const nombreBuscado = document.getElementById('paso3Nombre').value.trim();
+
+    document.getElementById('crearHuespedNumDoc').value    = numDocBuscado;
+    document.getElementById('crearHuespedNombre').value    = numDocBuscado ? '' : nombreBuscado;
+    document.getElementById('crearHuespedTelefono').value  = '';
+    document.getElementById('errorCrearHuespedDoc').textContent = '';
+    document.getElementById('errorCrearHuespedTel').textContent = '';
+    document.getElementById('errorCrearHuespedGeneral').style.display = 'none';
+    document.getElementById('crearHuespedNumDoc').closest('.campo-input').classList.remove('error');
+    document.getElementById('crearHuespedTelefono').closest('.campo-input').classList.remove('error');
+
+    document.getElementById('paso3Vacio').style.display        = 'none';  
+    document.getElementById('paso3CrearHuesped').style.display = 'block';
+
+    if (numDocBuscado) {
+        window.verificarDocumentoInline();
+    }
+};
+
+window.ocultarCrearHuespedInline = function () {
+    const el = document.getElementById('paso3CrearHuesped');
+    if (el) el.style.display = 'none';
+};
+
+window.cancelarCrearHuespedInline = function () {
+    window.ocultarCrearHuespedInline();
+    document.getElementById('paso3Vacio').style.display = 'block';
+};
+
+// Verificación AJAX de documento único, igual que en el módulo Huéspedes
+window.verificarDocumentoInline = function () {
+    const numDoc     = document.getElementById('crearHuespedNumDoc').value.trim();
+    const errorEl    = document.getElementById('errorCrearHuespedDoc');
+    const campoInput = document.getElementById('crearHuespedNumDoc').closest('.campo-input');
+
+    if (!numDoc) {
+        errorEl.textContent = '';
+        campoInput.classList.remove('error');
+        return;
+    }
+
+    fetch(`/huespedes/verificar-documento?num_doc=${encodeURIComponent(numDoc)}`, {
+        headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content },
+    })
+        .then(res => res.json())
+        .then(data => {
+            if (data.existe) {
+                errorEl.textContent = 'Este documento ya está registrado.';
+                campoInput.classList.add('error');
+            } else {
+                errorEl.textContent = '';
+                campoInput.classList.remove('error');
+            }
+        });
+};
+
+// Verificación AJAX de teléfono único, igual que en el módulo Huéspedes
+window.verificarTelefonoInline = function () {
+    const telefono   = document.getElementById('crearHuespedTelefono').value.trim();
+    const errorEl    = document.getElementById('errorCrearHuespedTel');
+    const campoInput = document.getElementById('crearHuespedTelefono').closest('.campo-input');
+
+    if (!telefono) {
+        errorEl.textContent = '';
+        campoInput.classList.remove('error');
+        return;
+    }
+
+    fetch(`/huespedes/verificar-telefono?telefono=${encodeURIComponent(telefono)}`, {
+        headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content },
+    })
+        .then(res => res.json())
+        .then(data => {
+            if (data.existe) {
+                errorEl.textContent = 'Este teléfono ya está registrado.';
+                campoInput.classList.add('error');
+            } else {
+                errorEl.textContent = '';
+                campoInput.classList.remove('error');
+            }
+        });
+};
+
+// Guarda el huésped nuevo directo en BD (AJAX) y lo agrega de inmediato a la reserva
+window.guardarHuespedInline = function () {
+    const nombre   = document.getElementById('crearHuespedNombre').value.trim();
+    const numDoc   = document.getElementById('crearHuespedNumDoc').value.trim();
+    const telefono = document.getElementById('crearHuespedTelefono').value.trim();
+
+    const errorGeneralEl = document.getElementById('errorCrearHuespedGeneral');
+    const errorDocEl      = document.getElementById('errorCrearHuespedDoc');
+    const errorTelEl      = document.getElementById('errorCrearHuespedTel');
+
+    if (!nombre || !numDoc) {
+        errorGeneralEl.textContent   = 'Complete el nombre y el número de documento.';
+        errorGeneralEl.style.display = 'block';
+        return;
+    }
+    if (errorDocEl.textContent.trim() !== '' || errorTelEl.textContent.trim() !== '') {
+        errorGeneralEl.textContent   = 'Corrija los errores marcados antes de guardar.';
+        errorGeneralEl.style.display = 'block';
+        return;
+    }
+    errorGeneralEl.style.display = 'none';
+
+    const btn = document.getElementById('btnGuardarHuespedInline');
+    btn.disabled  = true;
+    btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Guardando...';
+
+    fetch('/huespedes/crear-rapido', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept':       'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+        },
+        body: JSON.stringify({ nombre, num_doc: numDoc, telefono: telefono || null }),
+    })
+        .then(async res => {
+            const data = await res.json().catch(() => null);
+            return { ok: res.ok, data };
+        })
+        .then(({ ok, data }) => {
+            btn.disabled  = false;
+            btn.innerHTML = '<i class="bi bi-check-lg"></i> Guardar Huésped';
+
+            if (!ok) {
+                const msg = data?.errors
+                    ? Object.values(data.errors).flat().join(' ')
+                    : (data?.error ?? 'Ocurrió un error al guardar el huésped.');
+                errorGeneralEl.textContent   = msg;
+                errorGeneralEl.style.display = 'block';
+                return;
+            }
+
+            const h = data.huesped;
+            window.agregarHuesped(h.num_doc, h.nombre, h.telefono ?? '—');
+            window.ocultarCrearHuespedInline();
+            window.limpiarBuscadorHuesped();
+            mostrarAlerta('exito', 'Huésped registrado y agregado a la reserva.');
+        })
+        .catch(() => {
+            btn.disabled  = false;
+            btn.innerHTML = '<i class="bi bi-check-lg"></i> Guardar Huésped';
+            errorGeneralEl.textContent   = 'Ocurrió un error de conexión al guardar el huésped.';
+            errorGeneralEl.style.display = 'block';
+        });
+};
 
 
 // ── 09. MODAL CREAR — PASO 4: PAGOS Y CONFIRMACIÓN ──
@@ -2508,7 +2797,7 @@ window.huespedesReserva = function (id) {
         });
 };
 
-// Busca huéspedes por documento o nombre (mismo patrón que el Paso 3)
+// Busca huéspedes por documento o nombre (mismo patrón que el Paso 1)
 window.buscarHuespedModal = function () {
     const numDoc  = document.getElementById('huespedNumDoc').value.trim();
     const nombre  = document.getElementById('huespedNombre').value.trim();
@@ -3717,6 +4006,7 @@ document.addEventListener('DOMContentLoaded', () => {
         habitacionesData          = {};
         document.getElementById('paso2Mapa').style.display    = 'none';
         document.getElementById('paso2Resumen').style.display = 'none';
+        ocultarAviso(document.getElementById('paso2AvisoCapacidad'));
 
         huespedesSeleccionados = [];
         maxHuespedesPermitido  = 0;
@@ -3725,6 +4015,13 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('paso3AvisoLimite').style.display   = 'none';
         document.getElementById('paso3ContadorBadge').textContent   = '';
         document.getElementById('paso3ContadorBadge').classList.remove('badge-contador-limite');
+
+        document.getElementById('sugerenciaContenedor').style.display = 'none';
+        document.getElementById('sugerenciaComentario').value = '';
+        document.getElementById('sugerenciaInfo').style.display = 'none';
+        document.getElementById('sugerenciaErrorComentario').style.display = 'none';
+        document.getElementById('sugerenciaBtnGuardar').disabled = true;
+        document.getElementById('sugerenciaBtnToggle').disabled  = true;
 
         paso4MontoTotal  = 0;
         paso4MontoMinimo = 0;

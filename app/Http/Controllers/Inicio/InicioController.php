@@ -7,6 +7,8 @@ use App\Models\Habitacion;
 use App\Models\EstadoHabitacion;
 use App\Models\Reserva;
 use App\Models\EstadoReserva;
+use App\Models\Sugerencia;
+use App\Models\Huesped;
 use Illuminate\Support\Carbon;
 
 class InicioController extends Controller
@@ -101,8 +103,21 @@ class InicioController extends Controller
                 'habitaciones'  => $r->habitaciones->pluck('numero')->join(', '),
             ]);
 
+        $sugerenciasHoy = Sugerencia::whereDate('created_at', $hoy)
+            ->orderByDesc('id')
+            ->get()
+            ->map(function ($s) {
+                $huesped = Huesped::where('num_doc', $s->num_doc)->first();
+                return [
+                    'num_doc'    => $s->num_doc,
+                    'nombre'     => $huesped->nombre ?? null,
+                    'comentario' => $s->comentario,
+                    'hora'       => $s->created_at->format('H:i'),
+                ];
+            });
+
         return view('inicio.index', compact(
-            'mapaPisos', 'indicadores', 'checkinsHoy', 'checkoutsHoy', 'pagosPendientes'
+            'mapaPisos', 'indicadores', 'checkinsHoy', 'checkoutsHoy', 'pagosPendientes', 'sugerenciasHoy'
         ));
     }
 }

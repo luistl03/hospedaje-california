@@ -233,4 +233,35 @@ class HuespedController extends Controller
             ]),
         ]);
     }
+
+    // Creación rápida desde el wizard de Reservas (Paso 1: Huéspedes)
+    public function crearRapido(Request $request)
+    {
+        $request->validate([
+            'nombre'   => 'required|string|max:100',
+            'num_doc'  => 'required|string|max:20|unique:huespedes,num_doc',
+            'telefono' => 'nullable|string|max:15|unique:huespedes,telefono',
+        ], [
+            'nombre.required'  => 'El nombre es obligatorio.',
+            'num_doc.required' => 'El número de documento es obligatorio.',
+            'num_doc.unique'   => 'Este documento ya está registrado.',
+            'telefono.unique'  => 'Este teléfono ya está registrado.',
+        ]);
+
+        $huesped = Huesped::create([
+            'nombre'   => $request->nombre,
+            'num_doc'  => $request->num_doc,
+            'telefono' => $request->telefono ?: null,
+            'activo'   => 1,
+        ]);
+
+        return response()->json([
+            'ok'      => true,
+            'huesped' => [
+                'num_doc'  => $huesped->num_doc,
+                'nombre'   => $huesped->nombre,
+                'telefono' => $huesped->telefono ?? '—',
+            ],
+        ]);
+    }
 }

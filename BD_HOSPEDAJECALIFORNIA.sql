@@ -296,3 +296,18 @@ CREATE TABLE pagos (
         FOREIGN KEY (tipo_id) REFERENCES tipos_pago(id)
         ON UPDATE CASCADE ON DELETE RESTRICT
 );
+
+-- =========================================================
+-- SUGERENCIAS
+-- Tabla independiente, sin relación (FK) con ninguna otra.
+-- Registra comentarios cuando NO se concreta una reserva.
+-- =========================================================
+
+CREATE TABLE sugerencias (
+    id          BIGINT UNSIGNED     NOT NULL AUTO_INCREMENT,
+    num_doc     VARCHAR(20)         NOT NULL,
+    comentario  VARCHAR(255)        NOT NULL,
+    created_at  TIMESTAMP           NULL,
+    updated_at  TIMESTAMP           NULL,
+    PRIMARY KEY (id)
+);

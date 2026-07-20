@@ -9,6 +9,7 @@ use App\Models\Pago;
 use App\Models\Devolucion;
 use App\Models\EstadoReserva;
 use App\Models\Huesped;
+use App\Models\Sugerencia;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Carbon;
@@ -72,16 +73,45 @@ class ReporteController extends Controller
             ->whereIn('reservas.estado_id', $idsEstadosOcupacion)
             ->where('reservas.fecha_entrada', '<=', $hasta)
             ->where('reserva_habitaciones.fecha_salida_efectiva', '>=', $desde)
-            ->select('reservas.fecha_entrada as entrada', 'reserva_habitaciones.fecha_salida_efectiva as salida')
+            ->select(
+                'reserva_habitaciones.habitacion_numero as habitacion',
+                'reservas.fecha_entrada as entrada',
+                'reserva_habitaciones.fecha_salida_efectiva as salida'
+            )
             ->get();
 
-        $roomNights = $intervalos->sum(function ($r) use ($desde, $hasta) {
-            $ini = Carbon::parse($r->entrada)->max($desde);
-            $fin = Carbon::parse($r->salida)->min($hasta);
-            return max(0, $ini->diffInDays($fin) + 1);
-        });
+        $limiteInferior = $desde->copy()->startOfDay();
+        $limiteSuperior = $hasta->copy()->startOfDay();
 
-        $ocupacionPromedio = round(($roomNights / $capacidadTotal) * 100, 1);
+        // Set de "habitacion|Y-m-d" ocupados dentro del rango. Deduplicar por
+        // cuarto+día evita que varias reservas por horas en el mismo cuarto el
+        // mismo día se sumen entre sí y disparen la ocupación sobre 100%.
+        $diasOcupados = [];
+
+        foreach ($intervalos as $r) {
+            $entradaFecha = Carbon::parse($r->entrada)->startOfDay();
+            $salidaFecha  = Carbon::parse($r->salida)->startOfDay();
+
+            if ($salidaFecha->lte($entradaFecha)) {
+                // Por horas, no cruza medianoche: ocupa solo el día de entrada.
+                if ($entradaFecha->between($limiteInferior, $limiteSuperior)) {
+                    $diasOcupados[$r->habitacion . '|' . $entradaFecha->format('Y-m-d')] = true;
+                }
+                continue;
+            }
+
+            // Por noche(s): desde la entrada hasta el día ANTERIOR a la salida.
+            $cursor = $entradaFecha->copy();
+            while ($cursor->lt($salidaFecha)) {
+                if ($cursor->between($limiteInferior, $limiteSuperior)) {
+                    $diasOcupados[$r->habitacion . '|' . $cursor->format('Y-m-d')] = true;
+                }
+                $cursor->addDay();
+            }
+        }
+
+        $roomNights = count($diasOcupados);
+        $ocupacionPromedio = round(min(100, ($roomNights / $capacidadTotal) * 100), 1);
 
         // Serie de ingresos por día (gráfico de línea)
         $ingresosPorDiaRaw = Pago::whereBetween('fecha_pago', [$desde, $hasta])
@@ -146,21 +176,25 @@ class ReporteController extends Controller
             ->get();
 
         // Top 5 huéspedes más frecuentes (por reservas creadas en el rango)
-        $topHuespedes = Reserva::whereBetween('created_at', [$desde, $hasta])
+        $topHuespedesRaw = Reserva::whereBetween('created_at', [$desde, $hasta])
             ->selectRaw('huesped_principal, COUNT(*) as reservas, SUM(costo_total) as gasto')
             ->groupBy('huesped_principal')
             ->orderByDesc('reservas')
             ->limit(5)
-            ->get()
-            ->map(function ($r) {
-                $huesped = Huesped::where('num_doc', $r->huesped_principal)->first();
-                return [
-                    'nombre'   => $huesped->nombre ?? $r->huesped_principal,
-                    'num_doc'  => $r->huesped_principal,
-                    'reservas' => (int) $r->reservas,
-                    'gasto'    => (float) $r->gasto,
-                ];
-            });
+            ->get();
+
+        // Una sola consulta para los nombres de los 5, en vez de 5 consultas sueltas.
+        $nombresHuespedes = Huesped::whereIn('num_doc', $topHuespedesRaw->pluck('huesped_principal'))
+            ->pluck('nombre', 'num_doc');
+
+        $topHuespedes = $topHuespedesRaw->map(function ($r) use ($nombresHuespedes) {
+            return [
+                'nombre'   => $nombresHuespedes[$r->huesped_principal] ?? $r->huesped_principal,
+                'num_doc'  => $r->huesped_principal,
+                'reservas' => (int) $r->reservas,
+                'gasto'    => (float) $r->gasto,
+            ];
+        });
 
         // Distribución horas vs noches
         $distribucionEstadia = Reserva::whereBetween('created_at', [$desde, $hasta])
@@ -171,6 +205,24 @@ class ReporteController extends Controller
                 $acc[$r->es_por_horas ? 'horas' : 'noches'] = (int) $r->total;
                 return $acc;
             }, ['horas' => 0, 'noches' => 0]);
+
+        // Sugerencias / motivos de no atención registrados en el rango
+        $sugerenciasRaw = Sugerencia::whereBetween('created_at', [$desde, $hasta])
+            ->orderByDesc('id')
+            ->get();
+
+        // Una sola consulta para todos los nombres involucrados, en vez de una por sugerencia.
+        $nombresSugerencias = Huesped::whereIn('num_doc', $sugerenciasRaw->pluck('num_doc')->unique())
+            ->pluck('nombre', 'num_doc');
+
+        $sugerencias = $sugerenciasRaw->map(function ($s) use ($nombresSugerencias) {
+            return [
+                'num_doc'    => $s->num_doc,
+                'nombre'     => $nombresSugerencias[$s->num_doc] ?? null,
+                'comentario' => $s->comentario,
+                'fecha'      => $s->created_at->format('d/m/Y H:i'),
+            ];
+        });
 
         return [
             'rango' => [
@@ -191,6 +243,7 @@ class ReporteController extends Controller
             'top_tipos'             => $topTipos,
             'top_huespedes'         => $topHuespedes,
             'distribucion_estadia'  => $distribucionEstadia,
+            'sugerencias'           => $sugerencias,
         ];
     }
 

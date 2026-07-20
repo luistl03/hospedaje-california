@@ -101,7 +101,7 @@
     </div>
 
 
-    {{-- Modal: nueva reserva — wizard de 4 pasos (Datos → Habitaciones → Huéspedes → Pagos) --}}
+    {{-- Modal: nueva reserva — wizard de 4 pasos (Huéspedes → Datos → Habitaciones → Pagos) --}}
     <div class="modal fade" id="modalCrear" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content modal-california">
@@ -116,7 +116,7 @@
                     <div class="modal-body">
 
                         <div class="pasos-indicadores">
-                            @foreach(['Datos', 'Habitaciones', 'Huéspedes', 'Pagos'] as $i => $paso)
+                            @foreach(['Huéspedes', 'Datos', 'Habitaciones', 'Pagos'] as $i => $paso)
                                 <div class="paso-indicador {{ $i === 0 ? 'paso-activo' : '' }}"
                                     id="indicador{{ $i + 1 }}">
                                     <span class="paso-numero">{{ $i + 1 }}</span>
@@ -125,8 +125,161 @@
                             @endforeach
                         </div>
 
-                        {{-- Paso 1: tipo de estadía, fechas, aviso de franja horaria --}}
+                        {{-- Paso 1: buscador de huéspedes + lista de seleccionados + creación rápida --}}
                         <div id="paso1">
+
+                            <div class="aviso-franja franja-info mb-14">
+                                <i class="bi bi-info-circle-fill"></i>
+                                Agregue a todos los huéspedes que se hospedarán en esta reserva antes de continuar.
+                            </div>
+
+                            <div id="paso3AvisoLimite" class="aviso-franja franja-info mb-14" style="display:none;"></div>
+
+                            <div class="paso3-buscador">
+                                <div class="campo-grupo campo-grupo-doc">
+                                    <label>Nº Documento</label>
+                                    <div class="campo-input">
+                                        <i class="bi bi-123 campo-icono"></i>
+                                        <input type="text" id="paso3NumDoc" placeholder="12345678" maxlength="20" autocomplete="off">
+                                    </div>
+                                </div>
+                                <div class="campo-grupo">
+                                    <label>Nombre</label>
+                                    <div class="campo-input">
+                                        <i class="bi bi-person campo-icono"></i>
+                                        <input type="text" id="paso3Nombre" placeholder="Buscar por nombre..." maxlength="100" autocomplete="off">
+                                    </div>
+                                </div>
+                                <div class="buscador-acciones">
+                                    <button type="button" class="btn-primario" id="paso3BtnBuscar" onclick="window.buscarHuesped()">
+                                        <i class="bi bi-search"></i> Buscar
+                                    </button>
+                                    <button type="button" class="btn-secundario" onclick="window.limpiarBuscadorHuesped()">
+                                        <i class="bi bi-x-lg"></i> Limpiar
+                                    </button>
+                                </div>
+
+                                <small id="paso3ErrorBusqueda" class="campo-error" style="display:none;">
+                                    Ingrese número de documento o nombre para buscar.
+                                </small>
+                            </div>
+
+                            <div id="paso3Resultados" style="display:none;">
+                                <div class="piso-label mb-6">Resultados</div>
+                                <div id="paso3ListaResultados" class="paso3-lista"></div>
+                            </div>
+
+                            <div id="paso3Vacio" class="paso2-estado" style="display:none;">
+                                <i class="bi bi-person-x"></i>
+                                No se encontró ningún huésped con esos datos.
+                                <div class="mt-10">
+                                    <button type="button" class="btn-primario" id="paso3BtnCrearNuevo"
+                                        style="display:none;" onclick="window.mostrarCrearHuespedInline()">
+                                        <i class="bi bi-person-plus"></i> Crear nuevo huésped
+                                    </button>
+                                </div>
+                            </div>
+
+                            {{-- Formulario de creación rápida de huésped, se muestra cuando la búsqueda no arroja resultados --}}
+                            <div id="paso3CrearHuesped" class="mt-16" style="display:none;">
+                                <div class="piso-label mb-6">
+                                    <i class="bi bi-person-plus"></i> Registrar nuevo huésped
+                                </div>
+
+                                <div class="campo-grupo">
+                                    <label>Nombre completo</label>
+                                    <div class="campo-input">
+                                        <i class="bi bi-person campo-icono"></i>
+                                        <input type="text" id="crearHuespedNombre" placeholder="Ej: Juan Pérez" maxlength="100">
+                                    </div>
+                                </div>
+
+                                <div class="form-grid-2">
+                                    <div class="campo-grupo">
+                                        <label>N° Documento</label>
+                                        <div class="campo-input">
+                                            <i class="bi bi-hash campo-icono"></i>
+                                            <input type="text" id="crearHuespedNumDoc" placeholder="Ej: 12345678" maxlength="20"
+                                                oninput="window.verificarDocumentoInline()">
+                                        </div>
+                                        <small id="errorCrearHuespedDoc" class="campo-error"></small>
+                                    </div>
+
+                                    <div class="campo-grupo">
+                                        <label>Teléfono <span class="label-opcional">(opcional)</span></label>
+                                        <div class="campo-input">
+                                            <i class="bi bi-telephone campo-icono"></i>
+                                            <input type="text" id="crearHuespedTelefono" placeholder="Ej: 987654321" maxlength="15"
+                                                oninput="window.verificarTelefonoInline()">
+                                        </div>
+                                        <small id="errorCrearHuespedTel" class="campo-error"></small>
+                                    </div>
+                                </div>
+
+                                <small id="errorCrearHuespedGeneral" class="campo-error" style="display:none;"></small>
+
+                                <div class="filtros-acciones mt-8">
+                                    <button type="button" class="btn-primario" id="btnGuardarHuespedInline"
+                                        onclick="window.guardarHuespedInline()">
+                                        <i class="bi bi-check-lg"></i> Guardar Huésped
+                                    </button>
+                                    <button type="button" class="btn-secundario" onclick="window.ocultarCrearHuespedInline()">
+                                        <i class="bi bi-x-lg"></i> Cancelar
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div id="paso3Seleccionados" class="paso3-seleccionados" style="display:none;">
+                                <div class="paso3-seleccionados-titulo">
+                                    Huéspedes agregados
+                                    <span id="paso3ContadorBadge" class="badge-contador-dorado"></span>
+                                </div>
+                                <div id="paso3ListaSeleccionados"></div>
+                            </div>
+
+                            <small id="paso3ErrorGeneral" class="campo-error" style="display:none;"></small>
+
+                            <div class="mt-16">
+                                <button type="button" class="btn-secundario" id="sugerenciaBtnToggle"
+                                    onclick="window.toggleSugerencia()" disabled>
+                                    <i class="bi bi-chat-square-text"></i> Registrar sugerencia / motivo de no atención
+                                </button>
+
+                                <div id="sugerenciaContenedor" class="mt-12" style="display:none;">
+
+                                    <div id="sugerenciaInfo" class="aviso-franja franja-info mb-8" style="display:none;"></div>
+
+                                    <div class="campo-grupo">
+                                        <label>Comentario</label>
+                                        <div class="campo-input">
+                                            <i class="bi bi-chat-left-text campo-icono"></i>
+                                            <input type="text" id="sugerenciaComentario" maxlength="255"
+                                                placeholder="Ej: Buscaba habitación con vista al mar, no ofrecemos ese tipo."
+                                                oninput="window.validarComentarioSugerencia()">
+                                        </div>
+                                        <small id="sugerenciaErrorComentario" class="campo-error" style="display:none;">
+                                            Escriba un comentario antes de guardar.
+                                        </small>
+                                    </div>
+
+                                    <div class="filtros-acciones mt-8">
+                                        <button type="button" class="btn-primario" id="sugerenciaBtnGuardar"
+                                            onclick="window.guardarSugerencia()" disabled>
+                                            <i class="bi bi-save"></i> Guardar sugerencia
+                                        </button>
+                                        <button type="button" class="btn-secundario"
+                                            onclick="window.toggleSugerencia()">
+                                            <i class="bi bi-x-lg"></i> Cerrar
+                                        </button>
+                                    </div>
+
+                                </div>
+                            </div>
+
+                        </div>
+
+                        {{-- Paso 2: tipo de estadía, fechas, aviso de franja horaria --}}
+                        <div id="paso2" style="display:none;">
 
                             <div class="campo-grupo">
                                 <label>Tipo de Estadía</label>
@@ -182,8 +335,8 @@
 
                         </div>
 
-                        {{-- Paso 2: mapa de habitaciones disponibles, cargado por AJAX --}}
-                        <div id="paso2" style="display:none;">
+                        {{-- Paso 3: mapa de habitaciones disponibles, cargado por AJAX --}}
+                        <div id="paso3" style="display:none;">
 
                             <div id="paso2Cargando" class="paso2-estado">
                                 <i class="bi bi-arrow-repeat"></i>
@@ -204,65 +357,11 @@
                                 </div>
                             </div>
 
+                            <div id="paso2AvisoCapacidad" class="aviso-franja mt-20" style="display:none;"></div>
+
                             <small id="paso2ErrorSeleccion" class="campo-error" style="display:none;">
                                 Seleccione al menos una habitación.
                             </small>
-
-                        </div>
-
-                        {{-- Paso 3: buscador de huéspedes + lista de seleccionados --}}
-                        <div id="paso3" style="display:none;">
-
-                            <div id="paso3AvisoLimite" class="aviso-franja franja-info mb-14" style="display:none;"></div>
-
-                            <div class="paso3-buscador">
-                                <div class="campo-grupo campo-grupo-doc">
-                                    <label>Nº Documento</label>
-                                    <div class="campo-input">
-                                        <i class="bi bi-123 campo-icono"></i>
-                                        <input type="text" id="paso3NumDoc" placeholder="12345678" maxlength="20" autocomplete="off">
-                                    </div>
-                                </div>
-                                <div class="campo-grupo">
-                                    <label>Nombre</label>
-                                    <div class="campo-input">
-                                        <i class="bi bi-person campo-icono"></i>
-                                        <input type="text" id="paso3Nombre" placeholder="Buscar por nombre..." maxlength="100" autocomplete="off">
-                                    </div>
-                                </div>
-                                <div class="buscador-acciones">
-                                    <button type="button" class="btn-primario" id="paso3BtnBuscar" onclick="window.buscarHuesped()">
-                                        <i class="bi bi-search"></i> Buscar
-                                    </button>
-                                    <button type="button" class="btn-secundario" onclick="window.limpiarBuscadorHuesped()">
-                                        <i class="bi bi-x-lg"></i> Limpiar
-                                    </button>
-                                </div>
-
-                                <small id="paso3ErrorBusqueda" class="campo-error" style="display:none;">
-                                    Ingrese número de documento o nombre para buscar.
-                                </small>
-                            </div>
-
-                            <div id="paso3Resultados" style="display:none;">
-                                <div class="piso-label mb-6">Resultados</div>
-                                <div id="paso3ListaResultados" class="paso3-lista"></div>
-                            </div>
-
-                            <div id="paso3Vacio" class="paso2-estado" style="display:none;">
-                                <i class="bi bi-person-x"></i>
-                                No se encontró ningún huésped con esos datos.
-                            </div>
-
-                            <div id="paso3Seleccionados" class="paso3-seleccionados" style="display:none;">
-                                <div class="paso3-seleccionados-titulo">
-                                    Huéspedes agregados
-                                    <span id="paso3ContadorBadge" class="badge-contador-dorado"></span>
-                                </div>
-                                <div id="paso3ListaSeleccionados"></div>
-                            </div>
-
-                            <small id="paso3ErrorGeneral" class="campo-error" style="display:none;"></small>
 
                         </div>
 
